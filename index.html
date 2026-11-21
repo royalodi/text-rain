@@ -1,0 +1,3490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Text Rain — Rainbow Matrix Falling Code</title>
+  <meta name="description" content="A mesmerizing interactive rainbow Matrix text rain simulation with fluid mouse wind physics, custom text mode, gravity controls, right-click black holes, mouse magnet, and synthesized ambient sound.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌧️</text></svg>">
+  <style>
+    /* ==========================================================================
+       CSS Custom Properties & Design Tokens
+       ========================================================================== */
+    :root {
+      --bg-space: #05060a;
+      --bg-panel: rgba(11, 15, 25, 0.88);
+      --bg-panel-subtle: rgba(255, 255, 255, 0.05);
+      --border-panel: rgba(255, 255, 255, 0.12);
+      --border-panel-hover: rgba(255, 255, 255, 0.28);
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --accent-rainbow: linear-gradient(135deg, #ff4e50, #f9d423, #00e676, #00b0ff, #d500f9);
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #8b5cf6;
+      --accent-violet: #a855f7;
+
+      --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace;
+      
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-full: 9999px;
+      
+      --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+      /* Safe-area insets */
+      --sat: env(safe-area-inset-top, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+
+      /* Touch target standard */
+      --touch-min: 44px;
+    }
+
+    /* Reset & Base Layout */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      width: 100%;
+      height: 100%;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      width: 100%;
+      min-height: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow-x: hidden;
+      overflow-y: hidden;
+      position: relative;
+      background-color: var(--bg-space);
+      color: var(--text-main);
+      font-family: var(--font-system);
+      font-size: clamp(13px, 2.8vw, 14px);
+      line-height: 1.5;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Prevent double-tap zoom on all interactive controls */
+    button, input, select, textarea, a, .icon-btn, .pill-btn, .switch-pill, .brand-cluster {
+      touch-action: manipulation;
+    }
+
+    /* Fullscreen Simulation Canvas */
+    #rainCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: block;
+      z-index: 1;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    /* Ambient Dark Vignette Overlay */
+    .vignette-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      pointer-events: none;
+      z-index: 2;
+      background: radial-gradient(circle at 50% 50%, rgba(5, 6, 10, 0) 35%, rgba(5, 6, 10, 0.8) 100%);
+    }
+
+    /* Camera Flash FX Overlay for Screenshots */
+    .flash-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background: #ffffff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 9999;
+      transition: opacity 0.08s ease-out;
+    }
+    .flash-overlay.active {
+      opacity: 0.8;
+      transition: none;
+    }
+
+    /* ==========================================================================
+       UI Layer & Glassmorphic Navigation
+       ========================================================================== */
+    .ui-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: opacity var(--transition-normal), transform var(--transition-normal);
+      padding: var(--sat) var(--sar) var(--sab) var(--sal);
+      box-sizing: border-box;
+      max-width: 100vw;
+      overflow: hidden;
+    }
+
+    body.zen-mode .ui-layer {
+      opacity: 0;
+      pointer-events: none !important;
+      transform: translateY(-8px);
+    }
+
+    .ui-interactive {
+      pointer-events: auto;
+    }
+
+    /* Top Floating Navigation Bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: clamp(8px, 2vw, 16px);
+      padding: clamp(8px, 2vw, 14px) clamp(10px, 3vw, 20px);
+      width: 100%;
+      max-width: 100vw;
+      box-sizing: border-box;
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: clamp(8px, 2vw, 12px);
+      background: var(--bg-panel);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-panel);
+      padding: 6px 14px 6px 8px;
+      min-height: var(--touch-min);
+      border-radius: var(--radius-full);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+      transition: border-color var(--transition-fast), transform var(--transition-fast);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .brand-cluster:hover {
+      border-color: var(--border-panel-hover);
+    }
+
+    .brand-cluster:active {
+      transform: scale(0.97);
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      min-height: 32px;
+      border-radius: var(--radius-full);
+      background: var(--accent-rainbow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      box-shadow: 0 0 16px rgba(255, 78, 80, 0.5);
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: clamp(13px, 2.6vw, 14px);
+      letter-spacing: 0.5px;
+      background: linear-gradient(135deg, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      white-space: nowrap;
+    }
+
+    .brand-subtitle {
+      font-size: clamp(9px, 1.8vw, 10px);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    /* Live Telemetry Badges */
+    .telemetry-cluster {
+      display: flex;
+      align-items: center;
+      gap: clamp(4px, 1vw, 8px);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .telemetry-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-panel);
+      padding: 6px 12px;
+      min-height: 32px;
+      border-radius: var(--radius-full);
+      font-family: var(--font-mono);
+      font-size: clamp(10px, 2vw, 11px);
+      color: var(--text-muted);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+    }
+
+    .telemetry-badge strong {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: pulseDot 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.8); }
+    }
+
+    /* Quick Action Buttons Group */
+    .actions-cluster {
+      display: flex;
+      align-items: center;
+      gap: clamp(6px, 1.2vw, 8px);
+      flex-shrink: 0;
+    }
+
+    /* Interactive Icon Buttons (Strict 44px+ touch target) */
+    .icon-btn {
+      width: var(--touch-min);
+      height: var(--touch-min);
+      min-width: var(--touch-min);
+      min-height: var(--touch-min);
+      border-radius: var(--radius-full);
+      background: var(--bg-panel);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-panel);
+      color: var(--text-main);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      outline: none;
+      transition: all var(--transition-fast);
+      position: relative;
+      font-size: 16px;
+      flex-shrink: 0;
+      touch-action: manipulation;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .icon-btn:hover {
+        border-color: var(--border-panel-hover);
+        background: rgba(255, 255, 255, 0.14);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    .icon-btn:active {
+      transform: scale(0.94);
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .icon-btn.active {
+      background: rgba(99, 102, 241, 0.35);
+      border-color: var(--accent-purple);
+      color: #c4b5fd;
+      box-shadow: 0 0 14px rgba(139, 92, 246, 0.5);
+    }
+
+    .icon-btn.active-magnet {
+      background: rgba(244, 63, 94, 0.32);
+      border-color: var(--accent-rose);
+      color: #fda4af;
+      box-shadow: 0 0 14px rgba(244, 63, 94, 0.5);
+      animation: pulseMagnet 1.8s infinite ease-in-out;
+    }
+
+    @keyframes pulseMagnet {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); box-shadow: 0 0 18px rgba(244, 63, 94, 0.8); }
+    }
+
+    .icon-btn.active-frozen {
+      background: rgba(6, 182, 212, 0.35);
+      border-color: var(--accent-cyan);
+      color: #a5f3fc;
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.6);
+    }
+
+    .icon-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    /* Menu / Hamburger Icon Switch inside togglePanelBtn */
+    .toggle-panel-btn .icon-gear {
+      display: block;
+    }
+    .toggle-panel-btn .icon-hamburger {
+      display: none;
+    }
+
+    /* Desktop Tooltip (only when hover is supported) */
+    @media (hover: hover) and (pointer: fine) {
+      .icon-btn[data-tooltip]::before {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: -38px;
+        left: 50%;
+        transform: translateX(-50%) scale(0.9);
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid var(--border-panel);
+        color: var(--text-main);
+        padding: 5px 10px;
+        border-radius: var(--radius-sm);
+        font-size: 11px;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: all var(--transition-fast);
+        z-index: 100;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      }
+
+      .icon-btn:hover[data-tooltip]::before {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+      }
+    }
+
+    /* Freeze Frame HUD Indicator */
+    .freeze-indicator {
+      position: fixed;
+      top: calc(clamp(64px, 10vh, 80px) + var(--sat));
+      left: 50%;
+      transform: translateX(-50%) scale(0.9);
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--accent-cyan);
+      box-shadow: 0 8px 32px rgba(6, 182, 212, 0.35);
+      padding: 8px clamp(12px, 3vw, 22px);
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+      opacity: 0;
+      transition: all var(--transition-smooth);
+      z-index: 30;
+      max-width: calc(100vw - 24px);
+      box-sizing: border-box;
+    }
+
+    .freeze-indicator.show {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+
+    .freeze-indicator .freeze-icon {
+      font-size: 16px;
+      animation: pulseFreeze 1.2s infinite ease-in-out;
+    }
+
+    .freeze-indicator .freeze-text {
+      font-family: var(--font-mono);
+      font-size: clamp(10px, 2.5vw, 12px);
+      font-weight: 700;
+      color: #e0f2fe;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    .freeze-indicator .freeze-sub {
+      font-size: clamp(9px, 2.2vw, 11px);
+      color: var(--accent-cyan);
+      border-left: 1px solid rgba(255, 255, 255, 0.2);
+      padding-left: 8px;
+      white-space: nowrap;
+    }
+
+    @keyframes pulseFreeze {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    /* Mobile Drawer Backdrop Overlay */
+    .drawer-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 85;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-normal);
+    }
+
+    .drawer-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ==========================================================================
+       Glassmorphic Control Drawer & Panel
+       ========================================================================== */
+    .control-panel {
+      position: fixed;
+      top: calc(72px + var(--sat));
+      right: calc(20px + var(--sar));
+      width: clamp(320px, 92vw, 385px);
+      max-height: calc(100vh - 90px - var(--sat) - var(--sab));
+      background: var(--bg-panel);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid var(--border-panel);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: transform var(--transition-smooth), opacity var(--transition-normal);
+      transform-origin: top right;
+      z-index: 90;
+      max-width: calc(100vw - 20px);
+    }
+
+    .control-panel.collapsed {
+      transform: scale(0.92) translateY(-10px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .panel-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-panel);
+      background: rgba(255, 255, 255, 0.03);
+      flex-shrink: 0;
+      min-height: var(--touch-min);
+    }
+
+    .panel-title {
+      font-size: clamp(12px, 2.8vw, 13px);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: var(--touch-min);
+      height: var(--touch-min);
+      min-width: var(--touch-min);
+      min-height: var(--touch-min);
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
+      font-size: 18px;
+      touch-action: manipulation;
+    }
+
+    .panel-close-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .panel-close-btn:active {
+      transform: scale(0.94);
+    }
+
+    .panel-body {
+      padding: 16px 18px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    .panel-body::-webkit-scrollbar {
+      width: 5px;
+    }
+    .panel-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+    }
+
+    /* Section Headers */
+    .control-group-title {
+      font-size: clamp(10px, 2.2vw, 11px);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent-cyan);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+      width: 100%;
+    }
+
+    .control-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: clamp(11px, 2.5vw, 12px);
+      color: var(--text-muted);
+    }
+
+    .control-value {
+      font-family: var(--font-mono);
+      font-size: clamp(10px, 2.2vw, 11px);
+      color: var(--accent-emerald);
+      font-weight: 600;
+    }
+
+    /* Responsive Sliders with 44px+ Touch Target */
+    .control-slider-wrap {
+      display: flex;
+      align-items: center;
+      position: relative;
+      width: 100%;
+      min-height: var(--touch-min);
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.16);
+      outline: none;
+      cursor: pointer;
+      touch-action: manipulation;
+      padding: 16px 0;
+      box-sizing: content-box;
+      margin: 0;
+      transition: background var(--transition-fast);
+    }
+
+    input[type="range"]:hover {
+      background: rgba(255, 255, 255, 0.24);
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.9), 0 2px 6px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      transition: transform var(--transition-fast), background-color var(--transition-fast);
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: var(--accent-cyan);
+    }
+
+    input[type="range"]::-webkit-slider-thumb:active {
+      transform: scale(1.25);
+      background: var(--accent-emerald);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: none;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.9), 0 2px 6px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+    }
+
+    /* Segmented Controls / Pills with 44px+ Touch Target */
+    .pill-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(clamp(80px, 24vw, 100px), 1fr));
+      gap: 6px;
+      width: 100%;
+    }
+
+    .pill-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-panel);
+      color: var(--text-muted);
+      padding: 8px 10px;
+      min-height: var(--touch-min);
+      border-radius: var(--radius-sm);
+      font-size: clamp(11px, 2.5vw, 12px);
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      text-align: center;
+      transition: all var(--transition-fast);
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      touch-action: manipulation;
+    }
+
+    .pill-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+      border-color: var(--border-panel-hover);
+    }
+
+    .pill-btn:active {
+      transform: scale(0.96);
+    }
+
+    .pill-btn.active {
+      background: rgba(99, 102, 241, 0.28);
+      border-color: var(--accent-purple);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
+      font-weight: 600;
+    }
+
+    /* Custom Switch Toggle Pill */
+    .switch-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-panel);
+      padding: 10px 14px;
+      min-height: 48px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      touch-action: manipulation;
+      font-size: clamp(11px, 2.5vw, 12px);
+      width: 100%;
+    }
+    .switch-pill:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-panel-hover);
+    }
+    .switch-pill:active {
+      transform: scale(0.98);
+    }
+    .switch-pill.active {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: var(--accent-emerald);
+    }
+    .switch-indicator {
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      min-height: 14px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transition: all var(--transition-fast);
+    }
+    .switch-pill.active .switch-indicator {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 10px var(--accent-emerald);
+    }
+
+    /* Custom Text Input */
+    .text-input-wrap {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .text-input {
+      flex: 1;
+      width: 100%;
+      min-height: var(--touch-min);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-panel);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 16px; /* 16px prevents iOS zoom-in on focus */
+      color: var(--text-main);
+      outline: none;
+      transition: all var(--transition-fast);
+      touch-action: manipulation;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.35);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Action Buttons inside Panel */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .primary-btn, .secondary-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 16px;
+      min-height: var(--touch-min);
+      border-radius: var(--radius-sm);
+      font-size: clamp(11px, 2.6vw, 12px);
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+      transition: all var(--transition-fast);
+      touch-action: manipulation;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .primary-btn {
+      background: var(--accent-rainbow);
+      border: none;
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(255, 78, 80, 0.3);
+    }
+
+    .primary-btn:hover {
+      opacity: 0.94;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(255, 78, 80, 0.5);
+    }
+
+    .primary-btn:active {
+      transform: scale(0.97);
+    }
+
+    .secondary-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-panel);
+      color: var(--text-muted);
+    }
+
+    .secondary-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: var(--text-main);
+      border-color: var(--border-panel-hover);
+    }
+
+    .secondary-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Drawer Telemetry Summary (Mobile) */
+    .drawer-telemetry {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    /* ==========================================================================
+       Bottom Zen Hint & Footer Dock
+       ========================================================================== */
+    .bottom-bar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: clamp(8px, 2vw, 16px) clamp(10px, 3vw, 20px);
+      width: 100%;
+      max-width: 100vw;
+      box-sizing: border-box;
+    }
+
+    .zen-hint-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: clamp(6px, 1.5vw, 12px);
+      background: var(--bg-panel);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-panel);
+      padding: 8px 16px;
+      min-height: 36px;
+      border-radius: var(--radius-full);
+      font-size: clamp(10px, 2vw, 11px);
+      color: var(--text-muted);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      flex-wrap: wrap;
+      max-width: calc(100vw - 32px);
+    }
+
+    .zen-hint-pill kbd {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: clamp(9px, 1.8vw, 10px);
+      color: var(--text-main);
+    }
+
+    .zen-hint-pill span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    /* Zen Mode Restore Pill */
+    .zen-restore-btn {
+      position: fixed;
+      top: calc(16px + var(--sat));
+      right: calc(16px + var(--sar));
+      width: 48px;
+      height: 48px;
+      min-width: var(--touch-min);
+      min-height: var(--touch-min);
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: all var(--transition-normal);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+      touch-action: manipulation;
+    }
+
+    body.zen-mode .zen-restore-btn {
+      opacity: 0.9;
+      pointer-events: auto;
+    }
+
+    body.zen-mode .zen-restore-btn:hover {
+      opacity: 1;
+      transform: scale(1.1);
+      border-color: var(--accent-cyan);
+    }
+
+    body.zen-mode .zen-restore-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Sleek Notification Toast */
+    .toast-msg {
+      position: fixed;
+      bottom: calc(24px + var(--sab));
+      left: 50%;
+      transform: translateX(-50%) translateY(30px);
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--accent-purple);
+      color: var(--text-main);
+      padding: 8px 18px;
+      min-height: 38px;
+      border-radius: var(--radius-full);
+      font-size: clamp(11px, 2.6vw, 12px);
+      font-weight: 500;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(139, 92, 246, 0.3);
+      pointer-events: none;
+      opacity: 0;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: min(90vw, 420px);
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .toast-msg.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Keyboard Shortcuts Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 120;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(10px, 3vw, 20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-normal);
+      box-sizing: border-box;
+    }
+
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-dialog {
+      background: var(--bg-panel);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-panel);
+      border-radius: var(--radius-lg);
+      width: min(92vw, 480px);
+      max-width: 480px;
+      max-height: min(85dvh, 620px);
+      padding: clamp(16px, 4vw, 24px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      transform: scale(0.94);
+      transition: transform var(--transition-smooth);
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .modal-backdrop.open .modal-dialog {
+      transform: scale(1);
+    }
+
+    .modal-title {
+      font-size: clamp(14px, 3.5vw, 16px);
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .shortcuts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 4px;
+      scrollbar-width: thin;
+    }
+
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: clamp(11px, 2.5vw, 12px);
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      gap: 12px;
+    }
+
+    .shortcut-row:last-child {
+      border-bottom: none;
+    }
+
+    .shortcut-keys {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .shortcut-keys kbd {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: clamp(10px, 2.2vw, 11px);
+      white-space: nowrap;
+    }
+
+    /* Screen Shake Container */
+    body.shake {
+      animation: screenImpulse 0.22s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    }
+
+    @keyframes screenImpulse {
+      10%, 90% { transform: translate3d(-1px, 2px, 0); }
+      20%, 80% { transform: translate3d(2px, -2px, 0); }
+      30%, 50%, 70% { transform: translate3d(-3px, 1px, 0); }
+      40%, 60% { transform: translate3d(3px, -1px, 0); }
+    }
+
+    /* ==========================================================================
+       Responsive Breakpoints (Desktop 1024px+, Tablet 768px, Mobile 480px & 320px)
+       ========================================================================== */
+
+    /* Tablet & Small Laptop Query (max-width: 768px) */
+    @media (max-width: 768px) {
+      .top-bar {
+        padding: clamp(6px, 1.5vw, 10px) clamp(8px, 2vw, 14px);
+      }
+
+      .brand-subtitle {
+        display: none;
+      }
+
+      .telemetry-cluster {
+        display: none;
+      }
+
+      .actions-cluster {
+        overflow-x: auto;
+        max-width: calc(100vw - 160px);
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 2px;
+      }
+      .actions-cluster::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* Control Panel transforms into full slide-out drawer */
+      .control-panel {
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(100vw, 390px);
+        max-width: 100vw;
+        height: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        border-top: none;
+        border-right: none;
+        border-bottom: none;
+        border-left: 1px solid var(--border-panel);
+        transform: translateX(0);
+        z-index: 100;
+        box-shadow: -10px 0 40px rgba(0, 0, 0, 0.7);
+      }
+
+      .control-panel.collapsed {
+        transform: translateX(100%);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .panel-header {
+        padding-top: calc(14px + var(--sat));
+      }
+
+      .panel-body {
+        padding-bottom: calc(28px + var(--sab));
+      }
+
+      /* Show Hamburger Icon on Mobile/Tablet */
+      .toggle-panel-btn .icon-gear {
+        display: none;
+      }
+      .toggle-panel-btn .icon-hamburger {
+        display: block;
+      }
+
+      /* Zen hint pill hides minor shortcuts */
+      .zen-hint-pill span:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) {
+        display: none;
+      }
+    }
+
+    /* Mobile Breakpoint (max-width: 480px) */
+    @media (max-width: 480px) {
+      .top-bar {
+        padding: calc(6px + var(--sat)) calc(8px + var(--sar)) 6px calc(8px + var(--sal));
+        gap: 6px;
+      }
+
+      .brand-cluster {
+        padding: 4px 10px 4px 6px;
+        min-height: var(--touch-min);
+        gap: 8px;
+      }
+
+      .brand-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 15px;
+      }
+
+      .brand-title {
+        font-size: 13px;
+      }
+
+      .actions-cluster {
+        gap: 6px;
+        max-width: calc(100vw - 130px);
+      }
+
+      .icon-btn {
+        width: var(--touch-min);
+        height: var(--touch-min);
+        min-width: var(--touch-min);
+        min-height: var(--touch-min);
+      }
+
+      /* Full width drawer on mobile */
+      .control-panel {
+        width: 100vw;
+        max-width: 100vw;
+      }
+
+      .panel-body {
+        padding: 14px 14px calc(24px + var(--sab)) 14px;
+        gap: 16px;
+      }
+
+      /* Buttons inside drawer stack vertically */
+      .btn-row {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .btn-row .primary-btn,
+      .btn-row .secondary-btn {
+        width: 100%;
+        min-height: var(--touch-min);
+      }
+
+      /* Mobile optimized grid */
+      .pill-grid {
+        grid-template-columns: repeat(auto-fit, minmax(clamp(78px, 28vw, 105px), 1fr));
+      }
+
+      .bottom-bar {
+        padding: 6px 10px calc(8px + var(--sab)) 10px;
+        justify-content: center;
+      }
+
+      .zen-hint-pill {
+        justify-content: center;
+        padding: 6px 12px;
+        font-size: 10px;
+        max-width: calc(100vw - 20px);
+      }
+    }
+
+    /* Ultra-Compact Phone Query (iPhone SE 320px) */
+    @media (max-width: 360px) {
+      .brand-title {
+        font-size: 12px;
+      }
+      .actions-cluster {
+        max-width: calc(100vw - 110px);
+        gap: 4px;
+      }
+      .pill-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Camera Flash Overlay for Screenshot Capture -->
+  <div class="flash-overlay" id="flashOverlay"></div>
+
+  <!-- Ambient Dark Background Vignette -->
+  <div class="vignette-overlay"></div>
+
+  <!-- Rain Simulation Canvas -->
+  <canvas id="rainCanvas"></canvas>
+
+  <!-- Freeze Frame HUD Display -->
+  <div class="freeze-indicator" id="freezeIndicator">
+    <span class="freeze-icon">⏸️</span>
+    <span class="freeze-text">FREEZE FRAME</span>
+    <span class="freeze-sub">Tap or Space to Resume</span>
+  </div>
+
+  <!-- Zen Mode Floating Restore Button -->
+  <button class="zen-restore-btn" id="zenRestoreBtn" title="Restore Controls (H)" aria-label="Restore Controls">
+    ⚙️
+  </button>
+
+  <!-- Mobile Drawer Backdrop Overlay -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+  <!-- Main UI Overlay Layer -->
+  <div class="ui-layer" id="uiLayer">
+
+    <!-- Top Navigation & Telemetry -->
+    <header class="top-bar">
+      <!-- Brand Logo / Title -->
+      <div class="brand-cluster ui-interactive" id="brandCluster" title="Click or tap to explode center">
+        <div class="brand-icon">🌧️</div>
+        <div class="brand-text">
+          <div class="brand-title">Text Rain</div>
+          <div class="brand-subtitle">Rainbow Matrix Engine</div>
+        </div>
+      </div>
+
+      <!-- Live Telemetry Badges (Desktop / Tablet) -->
+      <div class="telemetry-cluster">
+        <div class="telemetry-badge">
+          <span class="status-dot"></span>
+          FPS: <strong id="fpsVal">60</strong>
+        </div>
+        <div class="telemetry-badge">
+          Cols: <strong id="colsVal">--</strong>
+        </div>
+        <div class="telemetry-badge">
+          Drops: <strong id="dropsVal">--</strong>
+        </div>
+        <div class="telemetry-badge" title="Characters devoured by Black Holes">
+          🕳️ Devoured: <strong id="voidVal">0</strong>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="actions-cluster ui-interactive">
+        <!-- Screenshot Button -->
+        <button class="icon-btn" id="screenshotBtn" data-tooltip="Screenshot PNG (P)" aria-label="Take Screenshot">
+          📸
+        </button>
+
+        <!-- Mouse Magnet Toggle -->
+        <button class="icon-btn" id="magnetBtn" data-tooltip="Mouse Magnet (G)" aria-label="Toggle Magnet">
+          🧲
+        </button>
+
+        <!-- Freeze Frame Toggle -->
+        <button class="icon-btn" id="freezeBtn" data-tooltip="Freeze Frame (Space)" aria-label="Freeze Simulation">
+          ⏸️
+        </button>
+
+        <!-- Ambient Sound Toggle -->
+        <button class="icon-btn" id="soundBtn" data-tooltip="Ambient Audio (M)" aria-label="Toggle Sound">
+          <svg id="soundSvgOff" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+          <svg id="soundSvgOn" style="display:none;" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+        </button>
+
+        <!-- Ambient Breeze Toggle -->
+        <button class="icon-btn" id="breezeBtn" data-tooltip="Ambient Breeze (B)" aria-label="Toggle Breeze">
+          <svg viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>
+        </button>
+
+        <!-- Trigger Center Explosion -->
+        <button class="icon-btn" id="burstBtn" data-tooltip="Explode Center (C)" aria-label="Center Explosion">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+        </button>
+
+        <!-- Fullscreen Toggle -->
+        <button class="icon-btn" id="fullscreenBtn" data-tooltip="Fullscreen (F)" aria-label="Toggle Fullscreen">
+          <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+        </button>
+
+        <!-- Keyboard Shortcuts & Touch Info -->
+        <button class="icon-btn" id="helpBtn" data-tooltip="Controls & Touch Info" aria-label="Shortcuts and Info">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </button>
+
+        <!-- Toggle Controls Drawer / Hamburger -->
+        <button class="icon-btn toggle-panel-btn" id="togglePanelBtn" data-tooltip="Controls Matrix (H)" aria-label="Open Settings Menu">
+          <svg class="icon-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <svg class="icon-hamburger" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Bottom Zen Hint Pill -->
+    <footer class="bottom-bar">
+      <div class="zen-hint-pill ui-interactive">
+        <span><kbd>Left-Click</kbd> / <kbd>Tap</kbd> Explode</span>
+        <span><kbd>Right-Click</kbd> / <kbd>Hold</kbd> 🕳️ Black Hole</span>
+        <span><kbd>Space</kbd> ⏸️ Freeze</span>
+        <span><kbd>G</kbd> 🧲 Magnet</span>
+        <span><kbd>P</kbd> 📸 Screenshot</span>
+        <span><kbd>M</kbd> 🔊 Audio</span>
+        <span><kbd>1-9</kbd> Themes</span>
+        <span><kbd>H</kbd> Zen</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Glassmorphic Controls Panel & Slide-Out Drawer -->
+  <aside class="control-panel ui-interactive collapsed" id="controlPanel">
+    <div class="panel-header">
+      <div class="panel-title">
+        <span>⚙️</span> Rain Simulation Matrix
+      </div>
+      <button class="panel-close-btn" id="closePanelBtn" title="Close Panel" aria-label="Close Settings">✕</button>
+    </div>
+
+    <div class="panel-body">
+
+      <!-- Live Telemetry Section inside Mobile Drawer -->
+      <div class="drawer-telemetry">
+        <div class="telemetry-badge">
+          <span class="status-dot"></span> FPS: <strong id="drawerFpsVal">60</strong>
+        </div>
+        <div class="telemetry-badge">
+          Cols: <strong id="drawerColsVal">--</strong>
+        </div>
+        <div class="telemetry-badge">
+          Drops: <strong id="drawerDropsVal">--</strong>
+        </div>
+        <div class="telemetry-badge" title="Characters devoured by Black Holes">
+          🕳️ Devoured: <strong id="drawerVoidVal">0</strong>
+        </div>
+      </div>
+
+      <!-- Section: Rain Themes -->
+      <div>
+        <div class="control-group-title">🎨 Rain Themes</div>
+        <div class="pill-grid" id="palettePills">
+          <button class="pill-btn active" data-palette="rainbow">🌈 Rainbow</button>
+          <button class="pill-btn" data-palette="matrix">🟩 Matrix Green</button>
+          <button class="pill-btn" data-palette="fire">🔥 Fire Red/Orange</button>
+          <button class="pill-btn" data-palette="ocean">🌊 Ocean Blue/Cyan</button>
+          <button class="pill-btn" data-palette="monochrome">🤍 Monochrome White</button>
+          <button class="pill-btn" data-palette="emoji">✨ Emoji Rain</button>
+          <button class="pill-btn" data-palette="cyberpunk">⚡ Cyberpunk</button>
+          <button class="pill-btn" data-palette="aurora">🌌 Aurora</button>
+          <button class="pill-btn" data-palette="sunset">🌅 Sunset</button>
+        </div>
+      </div>
+
+      <!-- Section: Custom Text Mode -->
+      <div>
+        <div class="control-group-title">🔤 Custom Text Mode</div>
+        <div class="switch-pill" id="customModeToggle">
+          <span>Enable Custom Text Rain</span>
+          <span class="switch-indicator"></span>
+        </div>
+        <div class="control-item" style="margin-top: 8px;">
+          <div class="control-label-row">
+            <span>Text to Rain (Only these chars fall):</span>
+          </div>
+          <div class="text-input-wrap">
+            <input type="text" class="text-input" id="customTextInput" value="TEXT RAIN 2026 MATRIX ENHANCED" placeholder="Type words or letters here...">
+          </div>
+        </div>
+
+        <div class="control-label-row" style="margin-top: 8px;">
+          <span>Preset Glyphs (when Custom is off):</span>
+        </div>
+        <div class="pill-grid" id="charsetPills" style="margin-top: 6px;">
+          <button class="pill-btn active" data-charset="matrix">ｦ Katakana</button>
+          <button class="pill-btn" data-charset="math">∑ Physics</button>
+          <button class="pill-btn" data-charset="runes">ᚠ Runes</button>
+          <button class="pill-btn" data-charset="celestial">★ Stars</button>
+          <button class="pill-btn" data-charset="binary">01 Binary</button>
+          <button class="pill-btn" data-charset="emoji">🌧️ Emojis</button>
+        </div>
+      </div>
+
+      <!-- Section: Gravity & Rain Streams -->
+      <div>
+        <div class="control-group-title">🌧️ Gravity & Stream Physics</div>
+        
+        <!-- Gravity Slider -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Gravity (Fall Speed)</span>
+            <span class="control-value" id="gravityVal">Normal (1.0x)</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="gravitySlider" min="0.1" max="4.0" step="0.1" value="1.0" aria-label="Gravity Fall Speed">
+          </div>
+        </div>
+
+        <!-- Character Density Slider (Auto-adapts to screen size) -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Character Density / Spacing</span>
+            <span class="control-value" id="densityVal">Auto Optimal</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="densitySlider" min="12" max="38" step="2" value="22" aria-label="Character Density Spacing">
+          </div>
+        </div>
+
+        <!-- Font Size Slider -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Font Size</span>
+            <span class="control-value" id="fontSizeVal">16px</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="fontSizeSlider" min="12" max="28" step="1" value="16" aria-label="Font Size">
+          </div>
+        </div>
+
+        <!-- Glow Slider -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Neon Glow Intensity</span>
+            <span class="control-value" id="glowVal">High</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="glowSlider" min="0" max="22" step="2" value="12" aria-label="Neon Glow Intensity">
+          </div>
+        </div>
+
+        <!-- Trail Persistence Slider -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Motion Trail Persistence</span>
+            <span class="control-value" id="trailVal">0.30</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="trailSlider" min="0.10" max="0.60" step="0.05" value="0.30" aria-label="Motion Trail Persistence">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Mouse & Touch Forces Interaction -->
+      <div>
+        <div class="control-group-title">🧲 Forces & Interaction</div>
+
+        <div class="switch-pill" id="panelMagnetToggle">
+          <span>🧲 Mouse / Touch Magnet (Attract chars to finger)</span>
+          <span class="switch-indicator"></span>
+        </div>
+
+        <div class="control-item" style="margin-top: 10px;">
+          <div class="control-label-row">
+            <span>Cursor / Touch Force Mode</span>
+          </div>
+          <div class="pill-grid" id="windModePills">
+            <button class="pill-btn active" data-mode="wind">🌪️ Wind Push</button>
+            <button class="pill-btn" data-mode="repel">🛡️ Repel Force</button>
+            <button class="pill-btn" data-mode="attract">🧲 Attract Pull</button>
+          </div>
+        </div>
+
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Force Strength</span>
+            <span class="control-value" id="windStrengthVal">Normal</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="windStrengthSlider" min="0.2" max="3.0" step="0.1" value="1.0" aria-label="Wind Force Strength">
+          </div>
+        </div>
+
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Interaction Radius</span>
+            <span class="control-value" id="windRadiusVal">180px</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="windRadiusSlider" min="80" max="360" step="10" value="180" aria-label="Interaction Radius">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Explosions & Black Holes -->
+      <div>
+        <div class="control-group-title">💥 Explosions & Black Holes</div>
+
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Explosion Power</span>
+            <span class="control-value" id="blastPowerVal">18</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="blastPowerSlider" min="8" max="35" step="1" value="18" aria-label="Explosion Power">
+          </div>
+        </div>
+
+        <div class="control-item">
+          <div class="control-label-row">
+            <span>Debris Particle Count</span>
+            <span class="control-value" id="blastCountVal">65</span>
+          </div>
+          <div class="control-slider-wrap">
+            <input type="range" id="blastCountSlider" min="20" max="150" step="10" value="65" aria-label="Debris Particle Count">
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="primary-btn" id="panelBurstBtn">💥 Center Explosion</button>
+          <button class="secondary-btn" id="panelHoleBtn">🕳️ Spawn Black Hole</button>
+        </div>
+      </div>
+
+      <!-- Section: Actions, Sound & Reset -->
+      <div>
+        <div class="control-group-title">📸 Capture & Actions</div>
+        <div class="btn-row">
+          <button class="primary-btn" id="panelScreenshotBtn">📸 Save Screenshot PNG</button>
+        </div>
+        <div class="btn-row" style="margin-top: 8px;">
+          <button class="secondary-btn" id="panelFreezeBtn">⏸️ Freeze Frame</button>
+          <button class="secondary-btn" id="resetBtn">🔄 Reset Defaults</button>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- Notification Toast -->
+  <div class="toast-msg" id="toastMsg">
+    <span id="toastIcon">✨</span>
+    <span id="toastText">Welcome to Text Rain</span>
+  </div>
+
+  <!-- Keyboard Shortcuts & Touch Modal -->
+  <div class="modal-backdrop" id="shortcutsModal">
+    <div class="modal-dialog">
+      <div class="modal-title">
+        <span>📱 Controls & Touch Gestures</span>
+        <button class="panel-close-btn" id="closeModalBtn" aria-label="Close Modal">✕</button>
+      </div>
+      <div class="shortcuts-list">
+        <div class="shortcut-row">
+          <span>Character explosion</span>
+          <div class="shortcut-keys"><kbd>Tap</kbd> / <kbd>Left-Click</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Spawn Black Hole (destroys chars)</span>
+          <div class="shortcut-keys"><kbd>Hold 0.5s</kbd> / <kbd>2-Finger Tap</kbd> / <kbd>Right-Click</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Wind physics deflection</span>
+          <div class="shortcut-keys"><kbd>Touch Drag</kbd> / <kbd>Mouse Move</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Freeze Frame (Pause/Resume)</span>
+          <div class="shortcut-keys"><kbd>Space</kbd> / <kbd>⏸️ Button</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Toggle Magnet (pull chars to finger)</span>
+          <div class="shortcut-keys"><kbd>G</kbd> / <kbd>🧲 Button</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Save PNG Wallpaper</span>
+          <div class="shortcut-keys"><kbd>P</kbd> / <kbd>📸 Button</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Ambient Audio (Web Audio API)</span>
+          <div class="shortcut-keys"><kbd>M</kbd> / <kbd>🔊 Button</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Toggle Ambient Breeze</span>
+          <div class="shortcut-keys"><kbd>B</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Center screen explosion</span>
+          <div class="shortcut-keys"><kbd>C</kbd> or <kbd>E</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Toggle Zen Mode (Hide all UI)</span>
+          <div class="shortcut-keys"><kbd>H</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Toggle Fullscreen</span>
+          <div class="shortcut-keys"><kbd>F</kbd></div>
+        </div>
+        <div class="shortcut-row">
+          <span>Quick Switch Themes</span>
+          <div class="shortcut-keys"><kbd>1</kbd> to <kbd>9</kbd></div>
+        </div>
+      </div>
+      <div style="margin-top: 18px; text-align: right;">
+        <button class="primary-btn" id="modalOkBtn" style="width: auto; padding: 10px 24px; min-height: 44px;">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Complete Simulation Engine & Interaction Logic
+       ========================================================================== -->
+  <script>
+    /**
+     * Text Rain — Rainbow Matrix Simulation Engine
+     * Pure HTML5 Canvas, modern ECMAScript, Web Audio API. Zero dependencies.
+     * Fully responsive across mobile (320px+), tablet (768px), and desktop (1024px+).
+     */
+    (function () {
+      'use strict';
+
+      // ------------------------------------------------------------------------
+      // Configuration & State
+      // ------------------------------------------------------------------------
+      const CONFIG = {
+        gravity: 1.0,           // Gravity / Fall Speed multiplier (slow-mo to hyper)
+        columnSpacing: 22,       // Character Density slider (auto-adjusts by screen width)
+        fontSize: 16,
+        glowIntensity: 12,
+        trailPersistence: 0.30,
+        
+        // Custom Text Mode
+        customTextMode: false,
+        customText: 'TEXT RAIN 2026 MATRIX ENHANCED',
+        
+        // Wind & Mouse Magnet Physics
+        windMode: 'wind',        // 'wind', 'repel', 'attract'
+        mouseMagnet: false,      // Chars pulled directly toward cursor / touch
+        windStrength: 1.0,
+        windRadius: 180,
+        breezeEnabled: false,
+        
+        // Explosion & Black Hole Physics
+        blastPower: 18,
+        blastCount: 65,
+        voidAbsorbedTotal: 0,
+        
+        // Visual Palette & Character Set
+        currentPalette: 'rainbow',
+        currentCharSet: 'matrix',
+        
+        // Audio
+        soundEnabled: false,
+        soundVolume: 0.45,
+        
+        // Runtime States
+        isPaused: false,
+        isUiHidden: false
+      };
+
+      // State tracking for auto-density adjustments
+      let userCustomizedDensity = false;
+      let userCustomizedFontSize = false;
+
+      // ------------------------------------------------------------------------
+      // Character Sets
+      // ------------------------------------------------------------------------
+      const CHAR_SETS = {
+        matrix: 'ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEF日月火水木金土雨風光電',
+        math: '∑∫∏√∞πθλΔΩ≈≠≤≥∂∇⚛⚡⚙∭∯⊕⊗ℵαβγδεζηψω',
+        runes: 'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚻᚼᚽᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ᚛᚜ᚵᚶᚷᚸ',
+        celestial: '★✦✧✶✹✪✵✷✸❂◈◇❄❅❇❋✣✤⚡🪐🌙☀️☄',
+        binary: '0101010101ABCDEF<>{}/\\$#@&%*+=~',
+        emoji: ['🌧️', '⚡', '🔥', '💧', '✨', '🌈', '🌸', '❄️', '🚀', '👾', '💎', '🎉', '❤️', '🍀', '⭐', '🌊', '🌙', '🪐', '🛸', '🦄', '🔮', '🍃', '🌟', '☄️']
+      };
+
+      function getRandomGlyph() {
+        if (CONFIG.customTextMode) {
+          const trimmed = CONFIG.customText.replace(/\s+/g, '');
+          const chars = Array.from(trimmed.length > 0 ? trimmed : 'TEXTRAIN');
+          return chars[Math.floor(Math.random() * chars.length)] || '*';
+        }
+
+        if (CONFIG.currentPalette === 'emoji' || CONFIG.currentCharSet === 'emoji') {
+          const list = CHAR_SETS.emoji;
+          return list[Math.floor(Math.random() * list.length)];
+        }
+
+        const set = CHAR_SETS[CONFIG.currentCharSet] || CHAR_SETS.matrix;
+        return set.charAt(Math.floor(Math.random() * set.length)) || '*';
+      }
+
+      // ------------------------------------------------------------------------
+      // Rain Themes
+      // ------------------------------------------------------------------------
+      const PALETTES = {
+        rainbow: {
+          name: 'Rainbow Spectrum',
+          isEmoji: false,
+          getColHue: (colIdx, totalCols) => (colIdx / totalCols) * 360,
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: `hsl(${hue}, 100%, 94%)`, glow: `hsl(${hue}, 100%, 70%)` };
+            }
+            const alpha = Math.max(0.12, progress * 0.95);
+            const lightness = 38 + progress * 32;
+            return { fill: `hsla(${hue}, 95%, ${lightness}%, ${alpha})`, glow: `hsl(${hue}, 100%, 60%)` };
+          }
+        },
+        matrix: {
+          name: 'Matrix Green',
+          isEmoji: false,
+          getColHue: (colIdx) => 125 + (colIdx % 7) * 4,
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: '#ffffff', glow: '#00ff66' };
+            }
+            const alpha = Math.max(0.1, progress * 0.95);
+            const lightness = 25 + progress * 40;
+            return { fill: `hsla(${hue}, 100%, ${lightness}%, ${alpha})`, glow: '#00e676' };
+          }
+        },
+        fire: {
+          name: 'Fire Red / Orange',
+          isEmoji: false,
+          getColHue: (colIdx) => 8 + (colIdx % 12) * 3,
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: '#fff8db', glow: '#ff9900' };
+            }
+            const alpha = Math.max(0.12, progress * 0.95);
+            const h = hue + progress * 15;
+            const lightness = 28 + progress * 38;
+            return { fill: `hsla(${h}, 100%, ${lightness}%, ${alpha})`, glow: '#ff3b00' };
+          }
+        },
+        ocean: {
+          name: 'Ocean Blue / Cyan',
+          isEmoji: false,
+          getColHue: (colIdx) => 185 + (colIdx % 10) * 4,
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: '#e6ffff', glow: '#00e5ff' };
+            }
+            const alpha = Math.max(0.12, progress * 0.95);
+            const lightness = 30 + progress * 38;
+            return { fill: `hsla(${hue}, 100%, ${lightness}%, ${alpha})`, glow: '#00b0ff' };
+          }
+        },
+        monochrome: {
+          name: 'Monochrome White',
+          isEmoji: false,
+          getColHue: () => 210,
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: '#ffffff', glow: '#ffffff' };
+            }
+            const alpha = Math.max(0.1, progress * 0.95);
+            const lightness = 22 + progress * 62;
+            return { fill: `hsla(${hue}, 10%, ${lightness}%, ${alpha})`, glow: '#cbd5e1' };
+          }
+        },
+        emoji: {
+          name: 'Emoji Rain',
+          isEmoji: true,
+          getColHue: (colIdx, totalCols) => (colIdx / totalCols) * 360,
+          getDropColors: (hue, isHead) => {
+            return {
+              fill: '#ffffff',
+              glow: isHead ? `hsl(${hue}, 100%, 75%)` : 'transparent'
+            };
+          }
+        },
+        cyberpunk: {
+          name: 'Cyberpunk Neon',
+          isEmoji: false,
+          hues: [325, 185, 275, 55, 130],
+          getColHue: function (colIdx) {
+            return this.hues[colIdx % this.hues.length];
+          },
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: '#ffffff', glow: `hsl(${hue}, 100%, 65%)` };
+            }
+            const alpha = Math.max(0.12, progress);
+            return { fill: `hsla(${hue}, 100%, ${45 + progress * 25}%, ${alpha})`, glow: `hsl(${hue}, 100%, 60%)` };
+          }
+        },
+        aurora: {
+          name: 'Aurora Borealis',
+          isEmoji: false,
+          getColHue: (colIdx, totalCols) => {
+            const wave = Math.sin((colIdx / totalCols) * Math.PI * 3);
+            return 155 + wave * 65;
+          },
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: '#e0f7fa', glow: `hsl(${hue}, 100%, 75%)` };
+            }
+            const alpha = Math.max(0.1, progress);
+            return { fill: `hsla(${hue}, 95%, ${35 + progress * 35}%, ${alpha})`, glow: `hsl(${hue}, 100%, 65%)` };
+          }
+        },
+        sunset: {
+          name: 'Sunset Horizon',
+          isEmoji: false,
+          getColHue: (colIdx, totalCols) => {
+            const t = Math.sin((colIdx / totalCols) * Math.PI);
+            return 330 + t * 70;
+          },
+          getDropColors: (hue, isHead, progress) => {
+            if (isHead) {
+              return { fill: '#fff8e7', glow: `hsl(${hue}, 100%, 70%)` };
+            }
+            const alpha = Math.max(0.12, progress);
+            return { fill: `hsla(${hue}, 95%, ${40 + progress * 30}%, ${alpha})`, glow: `hsl(${hue}, 100%, 60%)` };
+          }
+        }
+      };
+
+      // ------------------------------------------------------------------------
+      // Synthesized Web Audio API Engine
+      // ------------------------------------------------------------------------
+      let audioCtx = null;
+      let ambientMasterGain = null;
+      let ambientNoiseNode = null;
+      let ambientFilter = null;
+      let droneOsc1 = null;
+      let droneOsc2 = null;
+      let droneGain = null;
+
+      function ensureAudio() {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            audioCtx = new AudioContextClass();
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+      }
+
+      function startAmbientAudio() {
+        ensureAudio();
+        if (!audioCtx) return;
+
+        const now = audioCtx.currentTime;
+
+        if (!ambientMasterGain) {
+          ambientMasterGain = audioCtx.createGain();
+          ambientMasterGain.gain.setValueAtTime(0.001, now);
+          ambientMasterGain.connect(audioCtx.destination);
+        }
+
+        if (!ambientNoiseNode) {
+          try {
+            const bufferSize = audioCtx.sampleRate * 2;
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            for (let i = 0; i < bufferSize; i++) {
+              const white = Math.random() * 2 - 1;
+              b0 = 0.99886 * b0 + white * 0.0555179;
+              b1 = 0.99332 * b1 + white * 0.0750759;
+              b2 = 0.96900 * b2 + white * 0.1538520;
+              b3 = 0.86650 * b3 + white * 0.3104856;
+              b4 = 0.55000 * b4 + white * 0.5329522;
+              b5 = -0.7616 * b5 - white * 0.0168980;
+              output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.045;
+              b6 = white * 0.115926;
+            }
+
+            ambientNoiseNode = audioCtx.createBufferSource();
+            ambientNoiseNode.buffer = noiseBuffer;
+            ambientNoiseNode.loop = true;
+
+            ambientFilter = audioCtx.createBiquadFilter();
+            ambientFilter.type = 'lowpass';
+            ambientFilter.frequency.setValueAtTime(1100, now);
+
+            ambientNoiseNode.connect(ambientFilter);
+            ambientFilter.connect(ambientMasterGain);
+            ambientNoiseNode.start(0);
+          } catch(e) {}
+        }
+
+        if (!droneOsc1) {
+          try {
+            droneOsc1 = audioCtx.createOscillator();
+            droneOsc2 = audioCtx.createOscillator();
+            droneGain = audioCtx.createGain();
+
+            droneOsc1.type = 'sine';
+            droneOsc1.frequency.setValueAtTime(110.0, now);
+
+            droneOsc2.type = 'triangle';
+            droneOsc2.frequency.setValueAtTime(164.81, now);
+
+            droneGain.gain.setValueAtTime(0.07, now);
+
+            droneOsc1.connect(droneGain);
+            droneOsc2.connect(droneGain);
+            droneGain.connect(ambientMasterGain);
+
+            droneOsc1.start(0);
+            droneOsc2.start(0);
+          } catch(e) {}
+        }
+
+        ambientMasterGain.gain.cancelScheduledValues(now);
+        ambientMasterGain.gain.setValueAtTime(ambientMasterGain.gain.value, now);
+        ambientMasterGain.gain.linearRampToValueAtTime(CONFIG.soundVolume * 0.55, now + 1.2);
+      }
+
+      function stopAmbientAudio() {
+        if (audioCtx && ambientMasterGain) {
+          const now = audioCtx.currentTime;
+          ambientMasterGain.gain.cancelScheduledValues(now);
+          ambientMasterGain.gain.setValueAtTime(ambientMasterGain.gain.value, now);
+          ambientMasterGain.gain.linearRampToValueAtTime(0.0001, now + 0.6);
+        }
+      }
+
+      function playExplosionAudio() {
+        if (!CONFIG.soundEnabled) return;
+        ensureAudio();
+        if (!audioCtx) return;
+
+        const now = audioCtx.currentTime;
+        const vol = CONFIG.soundVolume;
+
+        try {
+          const subOsc = audioCtx.createOscillator();
+          const subGain = audioCtx.createGain();
+          subOsc.type = 'sine';
+          subOsc.frequency.setValueAtTime(160, now);
+          subOsc.frequency.exponentialRampToValueAtTime(32, now + 0.38);
+
+          subGain.gain.setValueAtTime(0.55 * vol, now);
+          subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+
+          subOsc.connect(subGain);
+          subGain.connect(audioCtx.destination);
+          subOsc.start(now);
+          subOsc.stop(now + 0.4);
+
+          const chords = [587.33, 880.00, 1174.66, 1760.00];
+          chords.forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.016);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.72, now + 0.46);
+
+            gain.gain.setValueAtTime(0.14 * vol, now + idx * 0.016);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.46);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + idx * 0.016);
+            osc.stop(now + 0.5);
+          });
+        } catch (e) {}
+      }
+
+      function playBlackHoleAudio() {
+        if (!CONFIG.soundEnabled) return;
+        ensureAudio();
+        if (!audioCtx) return;
+        try {
+          const now = audioCtx.currentTime;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          const filter = audioCtx.createBiquadFilter();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(30, now + 1.4);
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(750, now);
+          filter.frequency.exponentialRampToValueAtTime(60, now + 1.4);
+
+          gain.gain.setValueAtTime(0.42 * CONFIG.soundVolume, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(now);
+          osc.stop(now + 1.45);
+        } catch (e) {}
+      }
+
+      function playShutterAudio() {
+        if (!CONFIG.soundEnabled) return;
+        ensureAudio();
+        if (!audioCtx) return;
+        try {
+          const now = audioCtx.currentTime;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(1400, now);
+          osc.frequency.exponentialRampToValueAtTime(320, now + 0.05);
+          gain.gain.setValueAtTime(0.3 * CONFIG.soundVolume, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.06);
+
+          setTimeout(() => {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1750, t);
+            osc2.frequency.exponentialRampToValueAtTime(380, t + 0.08);
+            gain2.gain.setValueAtTime(0.24 * CONFIG.soundVolume, t);
+            gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.start(t);
+            osc2.stop(t + 0.09);
+          }, 60);
+        } catch (e) {}
+      }
+
+      function playGentleChime() {
+        if (!CONFIG.soundEnabled) return;
+        ensureAudio();
+        if (!audioCtx) return;
+        try {
+          const now = audioCtx.currentTime;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.exponentialRampToValueAtTime(1320, now + 0.2);
+          gain.gain.setValueAtTime(0.15 * CONFIG.soundVolume, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.26);
+        } catch (e) {}
+      }
+
+      // ------------------------------------------------------------------------
+      // Responsive Canvas Setup & DPR Scaling
+      // ------------------------------------------------------------------------
+      const canvas = document.getElementById('rainCanvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+      
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      let dpr = 1;
+
+      // Automatically adapts density and font size based on viewport width
+      function autoAdjustDensityForScreen() {
+        const screenW = window.innerWidth;
+
+        if (!userCustomizedDensity) {
+          let autoSpacing = 22;
+          if (screenW <= 360) {
+            autoSpacing = 16;
+          } else if (screenW <= 480) {
+            autoSpacing = 18;
+          } else if (screenW <= 768) {
+            autoSpacing = 20;
+          } else {
+            autoSpacing = 22;
+          }
+
+          CONFIG.columnSpacing = autoSpacing;
+          const dSlider = document.getElementById('densitySlider');
+          const dVal = document.getElementById('densityVal');
+          if (dSlider) dSlider.value = autoSpacing;
+          if (dVal) {
+            dVal.textContent = autoSpacing <= 16 ? 'Dense (Mobile)' : autoSpacing <= 20 ? 'Optimal (Tablet)' : 'Medium (Desktop)';
+          }
+        }
+
+        if (!userCustomizedFontSize) {
+          let autoFontSize = 16;
+          if (screenW <= 360) {
+            autoFontSize = 13;
+          } else if (screenW <= 480) {
+            autoFontSize = 14;
+          } else if (screenW <= 768) {
+            autoFontSize = 15;
+          } else {
+            autoFontSize = 16;
+          }
+
+          CONFIG.fontSize = autoFontSize;
+          const fsSlider = document.getElementById('fontSizeSlider');
+          const fsVal = document.getElementById('fontSizeVal');
+          if (fsSlider) fsSlider.value = autoFontSize;
+          if (fsVal) fsVal.textContent = `${autoFontSize}px`;
+        }
+      }
+
+      function resizeCanvas() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        autoAdjustDensityForScreen();
+        initColumns();
+      }
+
+      // ------------------------------------------------------------------------
+      // Physics Entities: Character Drop & Rain Stream
+      // ------------------------------------------------------------------------
+      class StreamCharacter {
+        constructor() {
+          this.char = getRandomGlyph();
+          this.xOffset = 0;
+          this.yOffset = 0;
+          this.vx = 0;
+          this.vy = 0;
+          this.mutateTimer = Math.floor(Math.random() * 50 + 20);
+        }
+
+        mutate() {
+          this.mutateTimer--;
+          if (this.mutateTimer <= 0) {
+            this.char = getRandomGlyph();
+            this.mutateTimer = Math.floor(Math.random() * 60 + 20);
+          }
+        }
+      }
+
+      class RainStream {
+        constructor(column, startY, length, speedOffset) {
+          this.column = column;
+          this.headY = startY;
+          this.length = length;
+          this.speedOffset = speedOffset;
+          this.chars = [];
+
+          for (let i = 0; i < length; i++) {
+            this.chars.push(new StreamCharacter());
+          }
+        }
+
+        reset(startY) {
+          this.headY = startY !== undefined ? startY : -Math.random() * 250 - 50;
+          this.length = Math.floor(Math.random() * 18 + 12);
+          this.chars = [];
+          for (let i = 0; i < this.length; i++) {
+            this.chars.push(new StreamCharacter());
+          }
+        }
+      }
+
+      class RainColumn {
+        constructor(index, x, totalCols) {
+          this.index = index;
+          this.baseX = x;
+          this.totalCols = totalCols;
+          
+          this.baseSpeed = 2.0 + Math.random() * 4.2;
+          this.updateHue();
+
+          this.streams = [];
+          const initialLen1 = Math.floor(Math.random() * 18 + 14);
+          const initialY1 = Math.random() * height;
+          this.streams.push(new RainStream(this, initialY1, initialLen1, 0));
+
+          if (Math.random() > 0.35) {
+            const initialLen2 = Math.floor(Math.random() * 16 + 10);
+            const initialY2 = initialY1 - (Math.random() * height * 0.7 + 300);
+            this.streams.push(new RainStream(this, initialY2, initialLen2, (Math.random() - 0.5) * 0.5));
+          }
+        }
+
+        updateHue() {
+          const paletteObj = PALETTES[CONFIG.currentPalette] || PALETTES.rainbow;
+          this.hue = paletteObj.getColHue(this.index, this.totalCols);
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // Black Hole Entity
+      // ------------------------------------------------------------------------
+      class BlackHole {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.radius = Math.min(260, Math.max(160, width * 0.4));
+          this.eventHorizon = 28;
+          this.life = 240;
+          this.maxLife = 240;
+          this.rotation = 0;
+          this.swirlSpeed = 0.085;
+          this.absorbed = 0;
+          this.particles = [];
+
+          for (let i = 0; i < 32; i++) {
+            this.particles.push({
+              angle: Math.random() * Math.PI * 2,
+              dist: Math.random() * (this.radius - this.eventHorizon) + this.eventHorizon,
+              speed: (Math.random() * 0.04 + 0.025),
+              size: Math.random() * 2.5 + 1.2,
+              hue: Math.random() > 0.5 ? 275 : 190
+            });
+          }
+        }
+
+        update() {
+          this.life--;
+          this.rotation += this.swirlSpeed;
+
+          for (let i = 0; i < this.particles.length; i++) {
+            const p = this.particles[i];
+            p.angle += p.speed * (160 / (p.dist + 20));
+            p.dist -= 0.65;
+            if (p.dist < this.eventHorizon) {
+              p.dist = this.radius * (0.65 + Math.random() * 0.35);
+            }
+          }
+
+          return this.life > 0;
+        }
+
+        draw(targetCtx) {
+          const progress = this.life / this.maxLife;
+          const scale = Math.min(1, Math.sin((1 - progress) * Math.PI * 0.5) * 1.25, progress * 4);
+          if (scale <= 0) return;
+
+          targetCtx.save();
+          targetCtx.translate(this.x, this.y);
+
+          const aura = targetCtx.createRadialGradient(0, 0, this.eventHorizon * scale, 0, 0, this.radius * scale);
+          aura.addColorStop(0, 'rgba(147, 51, 234, 0.5)');
+          aura.addColorStop(0.35, 'rgba(79, 70, 229, 0.2)');
+          aura.addColorStop(0.7, 'rgba(6, 182, 212, 0.08)');
+          aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          targetCtx.fillStyle = aura;
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, this.radius * scale, 0, Math.PI * 2);
+          targetCtx.fill();
+
+          targetCtx.rotate(this.rotation);
+          targetCtx.strokeStyle = 'rgba(192, 132, 252, 0.6)';
+          targetCtx.lineWidth = 2.2;
+          for (let arm = 0; arm < 3; arm++) {
+            targetCtx.beginPath();
+            const armAngle = (arm * Math.PI * 2) / 3;
+            for (let r = this.eventHorizon * scale; r < this.radius * 0.78 * scale; r += 5) {
+              const theta = armAngle + (r / 26);
+              const px = Math.cos(theta) * r;
+              const py = Math.sin(theta) * r;
+              if (r === this.eventHorizon * scale) targetCtx.moveTo(px, py);
+              else targetCtx.lineTo(px, py);
+            }
+            targetCtx.stroke();
+          }
+
+          for (let i = 0; i < this.particles.length; i++) {
+            const p = this.particles[i];
+            const px = Math.cos(p.angle) * p.dist * scale;
+            const py = Math.sin(p.angle) * p.dist * scale;
+            targetCtx.fillStyle = `hsl(${p.hue}, 100%, 75%)`;
+            targetCtx.beginPath();
+            targetCtx.arc(px, py, p.size * scale, 0, Math.PI * 2);
+            targetCtx.fill();
+          }
+
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, (this.eventHorizon + 2) * scale, 0, Math.PI * 2);
+          targetCtx.strokeStyle = '#c084fc';
+          targetCtx.lineWidth = 3;
+          targetCtx.shadowColor = '#d946ef';
+          targetCtx.shadowBlur = 18;
+          targetCtx.stroke();
+
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, this.eventHorizon * scale, 0, Math.PI * 2);
+          targetCtx.fillStyle = '#000000';
+          targetCtx.shadowBlur = 0;
+          targetCtx.fill();
+
+          targetCtx.restore();
+        }
+      }
+
+      class HawkingSpark {
+        constructor(x, y, hue) {
+          this.x = x;
+          this.y = y;
+          this.hue = hue || 280;
+          const a = Math.random() * Math.PI * 2;
+          const s = Math.random() * 4 + 2;
+          this.vx = Math.cos(a) * s;
+          this.vy = Math.sin(a) * s;
+          this.life = 25;
+          this.maxLife = 25;
+        }
+        update() {
+          this.x += this.vx;
+          this.y += this.vy;
+          this.vx *= 0.92;
+          this.vy *= 0.92;
+          this.life--;
+          return this.life > 0;
+        }
+        draw(targetCtx) {
+          const alpha = this.life / this.maxLife;
+          targetCtx.save();
+          targetCtx.globalAlpha = alpha;
+          targetCtx.fillStyle = `hsl(${this.hue}, 100%, 80%)`;
+          targetCtx.beginPath();
+          targetCtx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+          targetCtx.fill();
+          targetCtx.restore();
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // Explosion Particles & Shockwave Entities
+      // ------------------------------------------------------------------------
+      class ExplosionGlyph {
+        constructor(x, y, char, hue, power) {
+          this.x = x;
+          this.y = y;
+          this.char = char;
+          this.hue = hue;
+          
+          const angle = Math.random() * Math.PI * 2;
+          const speed = (Math.random() * 0.78 + 0.22) * power;
+          this.vx = Math.cos(angle) * speed;
+          this.vy = Math.sin(angle) * speed - (Math.random() * 3.8);
+
+          this.size = Math.floor(CONFIG.fontSize * (0.9 + Math.random() * 0.9));
+          this.rotation = Math.random() * Math.PI * 2;
+          this.vRot = (Math.random() - 0.5) * 0.35;
+          this.alpha = 1.0;
+          this.fade = 0.012 + Math.random() * 0.018;
+          this.gravity = 0.22 * Math.max(0.3, CONFIG.gravity);
+          this.friction = 0.975;
+        }
+
+        update() {
+          this.vx *= this.friction;
+          this.vy = (this.vy + this.gravity) * this.friction;
+          this.x += this.vx;
+          this.y += this.vy;
+          this.rotation += this.vRot;
+          this.alpha -= this.fade;
+          return this.alpha > 0;
+        }
+
+        draw(targetCtx) {
+          targetCtx.save();
+          targetCtx.translate(this.x, this.y);
+          targetCtx.rotate(this.rotation);
+          targetCtx.globalAlpha = Math.max(0, this.alpha);
+          targetCtx.font = `bold ${this.size}px monospace`;
+          targetCtx.fillStyle = `hsl(${this.hue}, 100%, 75%)`;
+          if (CONFIG.glowIntensity > 0) {
+            targetCtx.shadowColor = `hsl(${this.hue}, 100%, 65%)`;
+            targetCtx.shadowBlur = CONFIG.glowIntensity;
+          }
+          targetCtx.fillText(this.char, -this.size * 0.5, this.size * 0.35);
+          targetCtx.restore();
+        }
+      }
+
+      class ShockwaveRing {
+        constructor(x, y, hue, maxRadius) {
+          this.x = x;
+          this.y = y;
+          this.radius = 8;
+          this.maxRadius = maxRadius || 260;
+          this.speed = 15;
+          this.alpha = 1.0;
+          this.hue = hue;
+        }
+
+        update() {
+          this.radius += this.speed;
+          this.speed *= 0.95;
+          this.alpha = Math.max(0, 1 - (this.radius / this.maxRadius));
+          return this.alpha > 0.02 && this.radius < this.maxRadius;
+        }
+
+        draw(targetCtx) {
+          targetCtx.save();
+          targetCtx.globalAlpha = this.alpha * 0.85;
+
+          if (this.radius < this.maxRadius * 0.5) {
+            const flare = targetCtx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius * 1.5);
+            flare.addColorStop(0, `hsla(${this.hue}, 100%, 95%, ${this.alpha * 0.35})`);
+            flare.addColorStop(0.5, `hsla(${this.hue}, 100%, 65%, ${this.alpha * 0.15})`);
+            flare.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            targetCtx.fillStyle = flare;
+            targetCtx.beginPath();
+            targetCtx.arc(this.x, this.y, this.radius * 1.5, 0, Math.PI * 2);
+            targetCtx.fill();
+          }
+
+          targetCtx.beginPath();
+          targetCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          targetCtx.strokeStyle = `hsl(${this.hue}, 100%, 75%)`;
+          targetCtx.lineWidth = Math.max(1.5, 4.5 * (1 - this.radius / this.maxRadius));
+          if (CONFIG.glowIntensity > 0) {
+            targetCtx.shadowColor = `hsl(${this.hue}, 100%, 65%)`;
+            targetCtx.shadowBlur = CONFIG.glowIntensity * 1.5;
+          }
+          targetCtx.stroke();
+          targetCtx.restore();
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // Simulation State Lists
+      // ------------------------------------------------------------------------
+      let columns = [];
+      let explosionGlyphs = [];
+      let shockwaves = [];
+      let blackHoles = [];
+      let hawkingSparks = [];
+
+      function initColumns() {
+        columns = [];
+        const spacing = CONFIG.columnSpacing;
+        const totalCols = Math.ceil(width / spacing);
+
+        for (let i = 0; i < totalCols; i++) {
+          const colX = i * spacing + spacing * 0.5;
+          columns.push(new RainColumn(i, colX, totalCols));
+        }
+
+        updateTelemetryBadges();
+      }
+
+      function refreshAllColumnHues() {
+        columns.forEach(col => col.updateHue());
+      }
+
+      // ------------------------------------------------------------------------
+      // Pointer & Touch Velocity Tracker
+      // ------------------------------------------------------------------------
+      const mouse = {
+        x: -9999,
+        y: -9999,
+        vx: 0,
+        vy: 0,
+        speed: 0,
+        lastMoveTime: 0
+      };
+
+      function handlePointerMove(clientX, clientY) {
+        const now = performance.now();
+        const dt = Math.max(1, now - mouse.lastMoveTime);
+
+        if (mouse.x !== -9999 && mouse.lastMoveTime > 0 && (now - mouse.lastMoveTime < 250)) {
+          const rawVx = ((clientX - mouse.x) / dt) * 16;
+          const rawVy = ((clientY - mouse.y) / dt) * 16;
+          const maxVel = 80;
+          mouse.vx = Math.max(-maxVel, Math.min(maxVel, rawVx));
+          mouse.vy = Math.max(-maxVel, Math.min(maxVel, rawVy));
+          mouse.speed = Math.hypot(mouse.vx, mouse.vy);
+        } else {
+          mouse.vx = 0;
+          mouse.vy = 0;
+          mouse.speed = 0;
+        }
+
+        mouse.x = clientX;
+        mouse.y = clientY;
+        mouse.lastMoveTime = now;
+      }
+
+      // ------------------------------------------------------------------------
+      // Trigger Explosion Function
+      // ------------------------------------------------------------------------
+      function triggerExplosion(originX, originY) {
+        const x = (originX !== undefined && originX > -100) ? originX : width * 0.5;
+        const y = (originY !== undefined && originY > -100) ? originY : height * 0.5;
+
+        document.body.classList.remove('shake');
+        void document.body.offsetWidth;
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 240);
+
+        playExplosionAudio();
+
+        const paletteObj = PALETTES[CONFIG.currentPalette] || PALETTES.rainbow;
+        const colIdx = Math.floor((x / width) * Math.max(1, columns.length));
+        const blastHue = paletteObj.getColHue(colIdx, columns.length);
+
+        const maxRadius = Math.min(width * 0.6, 220 + CONFIG.blastPower * 6.5);
+        shockwaves.push(new ShockwaveRing(x, y, blastHue, maxRadius));
+
+        const count = CONFIG.blastCount;
+        for (let i = 0; i < count; i++) {
+          const glyph = getRandomGlyph();
+          const hue = (blastHue + (Math.random() - 0.5) * 60 + 360) % 360;
+          explosionGlyphs.push(new ExplosionGlyph(x, y, glyph, hue, CONFIG.blastPower));
+        }
+
+        const blastRadius = maxRadius * 1.15;
+        const power = CONFIG.blastPower;
+
+        columns.forEach(col => {
+          col.streams.forEach(stream => {
+            const charSpacing = CONFIG.fontSize * 1.1;
+            stream.chars.forEach((charObj, idx) => {
+              const charY = stream.headY - idx * charSpacing + charObj.yOffset;
+              const charX = col.baseX + charObj.xOffset;
+
+              const dx = charX - x;
+              const dy = charY - y;
+              const dist = Math.hypot(dx, dy) + 1;
+
+              if (dist < blastRadius) {
+                const norm = 1 - (dist / blastRadius);
+                const impulse = norm * norm * power * 2.4;
+                charObj.vx += (dx / dist) * impulse;
+                charObj.vy += (dy / dist) * impulse * 1.4 - (Math.random() * 3);
+                charObj.char = getRandomGlyph();
+              }
+            });
+          });
+        });
+      }
+
+      // ------------------------------------------------------------------------
+      // Spawn Black Hole Function
+      // ------------------------------------------------------------------------
+      function createBlackHole(originX, originY) {
+        const x = (originX !== undefined && originX > -100) ? originX : width * 0.5;
+        const y = (originY !== undefined && originY > -100) ? originY : height * 0.5;
+
+        blackHoles.push(new BlackHole(x, y));
+        playBlackHoleAudio();
+        showToast('🕳️ Singularity Opened!', '🕳️');
+      }
+
+      // ------------------------------------------------------------------------
+      // Comprehensive Touch & Mouse Interaction Layer
+      // Touch: Tap = Explode, Hold (0.45s) / 2-finger tap = Black Hole, Drag = Wind
+      // ------------------------------------------------------------------------
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchStartTime = 0;
+      let touchMoved = false;
+      let isTouchLongPress = false;
+      let touchLongPressTimer = null;
+
+      function onCanvasTouchStart(e) {
+        if (e.target.closest('.ui-interactive') || e.target.closest('.modal-dialog')) {
+          return;
+        }
+
+        ensureAudio();
+
+        if (e.touches.length === 2) {
+          if (touchLongPressTimer) clearTimeout(touchLongPressTimer);
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) * 0.5;
+          const midY = (e.touches[0].clientY + e.touches[1].clientY) * 0.5;
+          createBlackHole(midX, midY);
+          if (navigator.vibrate) navigator.vibrate(60);
+          return;
+        }
+
+        if (e.touches.length === 1) {
+          const t = e.touches[0];
+          touchStartX = t.clientX;
+          touchStartY = t.clientY;
+          touchStartTime = performance.now();
+          touchMoved = false;
+          isTouchLongPress = false;
+
+          handlePointerMove(t.clientX, t.clientY);
+
+          if (touchLongPressTimer) clearTimeout(touchLongPressTimer);
+          touchLongPressTimer = setTimeout(() => {
+            if (!touchMoved) {
+              isTouchLongPress = true;
+              createBlackHole(touchStartX, touchStartY);
+              if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+            }
+          }, 450);
+        }
+      }
+
+      function onCanvasTouchMove(e) {
+        if (e.target.closest('.ui-interactive') || e.target.closest('.modal-dialog')) {
+          return;
+        }
+
+        if (e.touches.length > 0) {
+          const t = e.touches[0];
+          const dx = t.clientX - touchStartX;
+          const dy = t.clientY - touchStartY;
+          if (Math.hypot(dx, dy) > 12) {
+            touchMoved = true;
+            if (touchLongPressTimer) {
+              clearTimeout(touchLongPressTimer);
+              touchLongPressTimer = null;
+            }
+          }
+          handlePointerMove(t.clientX, t.clientY);
+        }
+      }
+
+      function onCanvasTouchEnd(e) {
+        if (e.target.closest('.ui-interactive') || e.target.closest('.modal-dialog')) {
+          return;
+        }
+
+        if (touchLongPressTimer) {
+          clearTimeout(touchLongPressTimer);
+          touchLongPressTimer = null;
+        }
+
+        const duration = performance.now() - touchStartTime;
+
+        if (!touchMoved && !isTouchLongPress && duration < 400) {
+          triggerExplosion(touchStartX, touchStartY);
+        }
+
+        isTouchLongPress = false;
+        touchMoved = false;
+
+        if (!CONFIG.mouseMagnet) {
+          setTimeout(() => {
+            if (!CONFIG.mouseMagnet && performance.now() - mouse.lastMoveTime > 300) {
+              mouse.x = -9999;
+              mouse.y = -9999;
+              mouse.vx = 0;
+              mouse.vy = 0;
+            }
+          }, 350);
+        }
+      }
+
+      // Attach Touch Listeners
+      canvas.addEventListener('touchstart', onCanvasTouchStart, { passive: false });
+      canvas.addEventListener('touchmove', onCanvasTouchMove, { passive: false });
+      canvas.addEventListener('touchend', onCanvasTouchEnd, { passive: false });
+      canvas.addEventListener('touchcancel', onCanvasTouchEnd, { passive: false });
+
+      // Mouse Listeners
+      window.addEventListener('mousemove', (e) => {
+        handlePointerMove(e.clientX, e.clientY);
+      }, { passive: true });
+
+      window.addEventListener('mouseleave', () => {
+        mouse.x = -9999;
+        mouse.y = -9999;
+        mouse.vx = 0;
+        mouse.vy = 0;
+        mouse.speed = 0;
+      });
+
+      window.addEventListener('contextmenu', (e) => {
+        if (!e.target.closest('input') && !e.target.closest('textarea')) {
+          e.preventDefault();
+        }
+      });
+
+      window.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.ui-interactive') || e.target.closest('.modal-dialog')) {
+          return;
+        }
+
+        ensureAudio();
+
+        if (e.pointerType === 'mouse') {
+          if (e.button === 2) {
+            e.preventDefault();
+            createBlackHole(e.clientX, e.clientY);
+          } else if (e.button === 0) {
+            triggerExplosion(e.clientX, e.clientY);
+          }
+        }
+      });
+
+      // ------------------------------------------------------------------------
+      // Update Physics & Simulation Step
+      // ------------------------------------------------------------------------
+      const SPRING_K = 0.038;
+      const DAMPING = 0.915;
+
+      let frameCount = 0;
+      let lastFpsTime = performance.now();
+
+      function updateSimulation() {
+        if (CONFIG.isPaused) return;
+
+        const time = performance.now();
+        const charSpacing = CONFIG.fontSize * 1.1;
+        const windRadius = CONFIG.windRadius;
+        const windIntensity = CONFIG.windStrength;
+        const speedMult = CONFIG.gravity;
+        const isBreeze = CONFIG.breezeEnabled;
+        const mode = CONFIG.windMode;
+        const isMagnet = CONFIG.mouseMagnet;
+
+        const mouseActive = (mouse.x !== -9999) && (isMagnet || (time - mouse.lastMoveTime < 1200));
+
+        for (let c = 0; c < columns.length; c++) {
+          const col = columns[c];
+          const streamSpeed = col.baseSpeed * speedMult;
+
+          for (let s = 0; s < col.streams.length; s++) {
+            const stream = col.streams[s];
+            stream.headY += (streamSpeed + stream.speedOffset);
+
+            for (let i = 0; i < stream.chars.length; i++) {
+              const charObj = stream.chars[i];
+              charObj.mutate();
+
+              const currentY = stream.headY - i * charSpacing + charObj.yOffset;
+              const currentX = col.baseX + charObj.xOffset;
+
+              if (currentY >= -50 && currentY <= height + 50) {
+
+                // Cursor / Touch Force
+                if (mouseActive) {
+                  const dx = currentX - mouse.x;
+                  const dy = currentY - mouse.y;
+                  const dist = Math.hypot(dx, dy);
+
+                  if (isMagnet) {
+                    const magnetRadius = Math.max(windRadius, 260);
+                    if (dist < magnetRadius) {
+                      const norm = (1 - dist / magnetRadius);
+                      const pullForce = norm * 4.4 * windIntensity;
+                      const swirlForce = norm * 2.0;
+
+                      charObj.vx += (-dx / (dist + 1)) * pullForce + (-dy / (dist + 1)) * swirlForce;
+                      charObj.vy += (-dy / (dist + 1)) * pullForce + (dx / (dist + 1)) * swirlForce;
+                    }
+                  } else if (dist < windRadius) {
+                    const normDist = dist / windRadius;
+                    const force = (1 - normDist) * windIntensity;
+
+                    if (mode === 'wind') {
+                      charObj.vx += mouse.vx * force * 0.34 + (dx / (dist + 1)) * force * 2.0;
+                      charObj.vy += mouse.vy * force * 0.14 + (dy / (dist + 1)) * force * 1.0;
+                    } else if (mode === 'repel') {
+                      charObj.vx += (dx / (dist + 1)) * force * 4.5;
+                      charObj.vy += (dy / (dist + 1)) * force * 2.8;
+                    } else if (mode === 'attract') {
+                      charObj.vx -= (dx / (dist + 1)) * force * 3.4;
+                      charObj.vy -= (dy / (dist + 1)) * force * 2.2;
+                    }
+                  }
+                }
+
+                // Black Holes Gravity Vortex & Destruction
+                for (let h = 0; h < blackHoles.length; h++) {
+                  const hole = blackHoles[h];
+                  const hdx = currentX - hole.x;
+                  const hdy = currentY - hole.y;
+                  const hDist = Math.hypot(hdx, hdy);
+
+                  if (hDist < hole.radius) {
+                    const norm = (1 - hDist / hole.radius);
+                    const pull = norm * norm * 7.5;
+                    const swirl = norm * 5.2;
+
+                    charObj.vx += (-hdx / (hDist + 1)) * pull + (-hdy / (hDist + 1)) * swirl;
+                    charObj.vy += (-hdy / (hDist + 1)) * pull + (hdx / (hDist + 1)) * swirl;
+
+                    if (hDist < hole.eventHorizon) {
+                      for (let sp = 0; sp < 4; sp++) {
+                        hawkingSparks.push(new HawkingSpark(currentX, currentY, col.hue));
+                      }
+                      charObj.char = getRandomGlyph();
+                      charObj.xOffset = (Math.random() - 0.5) * 10;
+                      charObj.yOffset = -height * 1.5;
+                      charObj.vx = 0;
+                      charObj.vy = 0;
+
+                      hole.absorbed++;
+                      CONFIG.voidAbsorbedTotal++;
+                      const voidVal = document.getElementById('voidVal');
+                      const drawerVoidVal = document.getElementById('drawerVoidVal');
+                      if (voidVal) voidVal.textContent = CONFIG.voidAbsorbedTotal;
+                      if (drawerVoidVal) drawerVoidVal.textContent = CONFIG.voidAbsorbedTotal;
+                    }
+                  }
+                }
+
+                // Ambient Breeze Sway
+                if (isBreeze) {
+                  const breezeWave = Math.sin(time * 0.0022 + currentY * 0.006) * 0.48;
+                  charObj.vx += breezeWave;
+                }
+
+                // Elastic Spring Return & Damping
+                charObj.vx += -SPRING_K * charObj.xOffset;
+                charObj.vx *= DAMPING;
+                charObj.xOffset += charObj.vx;
+
+                charObj.vy += -SPRING_K * charObj.yOffset;
+                charObj.vy *= DAMPING;
+                charObj.yOffset += charObj.vy;
+              }
+            }
+
+            const tailY = stream.headY - stream.length * charSpacing;
+            if (tailY > height + 60) {
+              stream.reset(-Math.random() * 200 - 40);
+            }
+          }
+        }
+
+        // Update black holes
+        for (let i = blackHoles.length - 1; i >= 0; i--) {
+          const alive = blackHoles[i].update();
+          if (!alive) {
+            blackHoles.splice(i, 1);
+          }
+        }
+
+        // Update Hawking radiation sparks
+        for (let i = hawkingSparks.length - 1; i >= 0; i--) {
+          const alive = hawkingSparks[i].update();
+          if (!alive) {
+            hawkingSparks.splice(i, 1);
+          }
+        }
+
+        // Update explosion debris
+        for (let i = explosionGlyphs.length - 1; i >= 0; i--) {
+          const alive = explosionGlyphs[i].update();
+          if (!alive) {
+            explosionGlyphs.splice(i, 1);
+          }
+        }
+
+        // Update shockwaves
+        for (let i = shockwaves.length - 1; i >= 0; i--) {
+          const alive = shockwaves[i].update();
+          if (!alive) {
+            shockwaves.splice(i, 1);
+          }
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // Render Frame Step
+      // ------------------------------------------------------------------------
+      function renderFrame() {
+        const trailAlpha = CONFIG.trailPersistence;
+        ctx.fillStyle = `rgba(5, 6, 10, ${trailAlpha})`;
+        ctx.fillRect(0, 0, width, height);
+
+        const paletteObj = PALETTES[CONFIG.currentPalette] || PALETTES.rainbow;
+        const fontSize = CONFIG.fontSize;
+        const charSpacing = fontSize * 1.1;
+        const glow = CONFIG.glowIntensity;
+        const isEmojiTheme = paletteObj.isEmoji || CONFIG.currentCharSet === 'emoji';
+
+        ctx.font = isEmojiTheme
+          ? `${fontSize}px 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif`
+          : `bold ${fontSize}px monospace`;
+        ctx.textBaseline = 'top';
+
+        for (let c = 0; c < columns.length; c++) {
+          const col = columns[c];
+          const colHue = col.hue;
+
+          for (let s = 0; s < col.streams.length; s++) {
+            const stream = col.streams[s];
+            const len = stream.chars.length;
+
+            for (let i = 0; i < len; i++) {
+              const charItem = stream.chars[i];
+              if (!charItem) continue;
+
+              const currentY = stream.headY - i * charSpacing + charItem.yOffset;
+              if (currentY < -fontSize || currentY > height + fontSize) continue;
+
+              const currentX = col.baseX + charItem.xOffset;
+              const isHead = (i === 0);
+              const progress = (len - i) / len;
+              const charGlyph = charItem.char;
+
+              const colors = paletteObj.getDropColors(colHue, isHead, progress);
+
+              if (isHead && glow > 0) {
+                ctx.save();
+                ctx.shadowColor = colors.glow;
+                ctx.shadowBlur = glow * 1.4;
+                ctx.fillStyle = colors.fill;
+                ctx.fillText(charGlyph, currentX - fontSize * 0.4, currentY);
+                ctx.restore();
+              } else {
+                ctx.fillStyle = colors.fill;
+                ctx.fillText(charGlyph, currentX - fontSize * 0.4, currentY);
+              }
+            }
+          }
+        }
+
+        for (let i = 0; i < blackHoles.length; i++) {
+          blackHoles[i].draw(ctx);
+        }
+
+        for (let i = 0; i < hawkingSparks.length; i++) {
+          hawkingSparks[i].draw(ctx);
+        }
+
+        for (let i = 0; i < shockwaves.length; i++) {
+          shockwaves[i].draw(ctx);
+        }
+
+        for (let i = 0; i < explosionGlyphs.length; i++) {
+          explosionGlyphs[i].draw(ctx);
+        }
+
+        if (CONFIG.mouseMagnet && mouse.x !== -9999) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(mouse.x, mouse.y, 42, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 6]);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(mouse.x, mouse.y, 16, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.7)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([]);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // ------------------------------------------------------------------------
+      // Main Animation Loop with Telemetry
+      // ------------------------------------------------------------------------
+      function animationTick(now) {
+        requestAnimationFrame(animationTick);
+
+        updateSimulation();
+        renderFrame();
+
+        frameCount++;
+        if (now - lastFpsTime >= 500) {
+          const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+          const fpsVal = document.getElementById('fpsVal');
+          const drawerFpsVal = document.getElementById('drawerFpsVal');
+          if (fpsVal) fpsVal.textContent = fps;
+          if (drawerFpsVal) drawerFpsVal.textContent = fps;
+          frameCount = 0;
+          lastFpsTime = now;
+        }
+      }
+
+      function updateTelemetryBadges() {
+        const colsVal = document.getElementById('colsVal');
+        const drawerColsVal = document.getElementById('drawerColsVal');
+        if (colsVal) colsVal.textContent = columns.length;
+        if (drawerColsVal) drawerColsVal.textContent = columns.length;
+
+        let drops = 0;
+        columns.forEach(col => col.streams.forEach(s => drops += s.chars.length));
+        const dropsVal = document.getElementById('dropsVal');
+        const drawerDropsVal = document.getElementById('drawerDropsVal');
+        const formatted = drops.toLocaleString();
+        if (dropsVal) dropsVal.textContent = formatted;
+        if (drawerDropsVal) drawerDropsVal.textContent = formatted;
+      }
+
+      // ------------------------------------------------------------------------
+      // UI Controls & Interaction Bindings
+      // ------------------------------------------------------------------------
+      const controlPanel = document.getElementById('controlPanel');
+      const togglePanelBtn = document.getElementById('togglePanelBtn');
+      const closePanelBtn = document.getElementById('closePanelBtn');
+      const zenRestoreBtn = document.getElementById('zenRestoreBtn');
+      const drawerBackdrop = document.getElementById('drawerBackdrop');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastText = document.getElementById('toastText');
+      const toastIcon = document.getElementById('toastIcon');
+      const freezeIndicator = document.getElementById('freezeIndicator');
+      const flashOverlay = document.getElementById('flashOverlay');
+      
+      let toastTimer = null;
+      function showToast(text, icon = '✨') {
+        toastIcon.textContent = icon;
+        toastText.textContent = text;
+        toastMsg.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toastMsg.classList.remove('show');
+        }, 2200);
+      }
+
+      // Panel & Slide-Out Drawer Toggle
+      function togglePanel(open) {
+        const isCollapsed = controlPanel.classList.contains('collapsed');
+        const willOpen = open !== undefined ? open : isCollapsed;
+
+        controlPanel.classList.toggle('collapsed', !willOpen);
+        togglePanelBtn.classList.toggle('active', willOpen);
+        if (drawerBackdrop) {
+          drawerBackdrop.classList.toggle('active', willOpen);
+        }
+      }
+
+      togglePanelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePanel();
+      });
+      closePanelBtn.addEventListener('click', () => togglePanel(false));
+      if (drawerBackdrop) {
+        drawerBackdrop.addEventListener('click', () => togglePanel(false));
+      }
+
+      // Zen Mode Toggle
+      function toggleZenMode(forceState) {
+        CONFIG.isUiHidden = (forceState !== undefined) ? forceState : !CONFIG.isUiHidden;
+        document.body.classList.toggle('zen-mode', CONFIG.isUiHidden);
+        if (CONFIG.isUiHidden) {
+          togglePanel(false);
+          showToast('Zen Mode Enabled (Press H or tap ⚙️)', '🧘');
+        } else {
+          showToast('UI Restored', '🖥️');
+        }
+      }
+      zenRestoreBtn.addEventListener('click', () => toggleZenMode(false));
+
+      // Fullscreen Toggle
+      const fullscreenBtn = document.getElementById('fullscreenBtn');
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+          showToast('Fullscreen Mode', '⛶');
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen();
+          showToast('Exited Fullscreen', '⛶');
+        }
+      }
+      fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+      // Freeze Frame Toggle
+      const freezeBtn = document.getElementById('freezeBtn');
+      const panelFreezeBtn = document.getElementById('panelFreezeBtn');
+      function toggleFreezeFrame(forceState) {
+        CONFIG.isPaused = forceState !== undefined ? forceState : !CONFIG.isPaused;
+        freezeBtn.classList.toggle('active-frozen', CONFIG.isPaused);
+        freezeIndicator.classList.toggle('show', CONFIG.isPaused);
+        panelFreezeBtn.textContent = CONFIG.isPaused ? '▶️ Resume Rain' : '⏸️ Freeze Frame';
+        showToast(CONFIG.isPaused ? 'Freeze Frame: FROZEN' : 'Simulation Resumed', CONFIG.isPaused ? '⏸️' : '▶️');
+      }
+      freezeBtn.addEventListener('click', () => toggleFreezeFrame());
+      panelFreezeBtn.addEventListener('click', () => toggleFreezeFrame());
+
+      // Mouse Magnet Toggle
+      const magnetBtn = document.getElementById('magnetBtn');
+      const panelMagnetToggle = document.getElementById('panelMagnetToggle');
+      function toggleMouseMagnet(forceState) {
+        CONFIG.mouseMagnet = forceState !== undefined ? forceState : !CONFIG.mouseMagnet;
+        magnetBtn.classList.toggle('active-magnet', CONFIG.mouseMagnet);
+        panelMagnetToggle.classList.toggle('active', CONFIG.mouseMagnet);
+        showToast(CONFIG.mouseMagnet ? 'Mouse Magnet: ON' : 'Mouse Magnet: OFF', '🧲');
+      }
+      magnetBtn.addEventListener('click', () => toggleMouseMagnet());
+      panelMagnetToggle.addEventListener('click', () => toggleMouseMagnet());
+
+      // Ambient Sound Toggle via Web Audio
+      const soundBtn = document.getElementById('soundBtn');
+      const soundSvgOff = document.getElementById('soundSvgOff');
+      const soundSvgOn = document.getElementById('soundSvgOn');
+
+      function toggleSound(forceState) {
+        CONFIG.soundEnabled = forceState !== undefined ? forceState : !CONFIG.soundEnabled;
+        if (CONFIG.soundEnabled) {
+          startAmbientAudio();
+          soundSvgOff.style.display = 'none';
+          soundSvgOn.style.display = 'block';
+          soundBtn.classList.add('active');
+          showToast('Ambient Sound: ON (Web Audio)', '🔊');
+          playGentleChime();
+        } else {
+          stopAmbientAudio();
+          soundSvgOff.style.display = 'block';
+          soundSvgOn.style.display = 'none';
+          soundBtn.classList.remove('active');
+          showToast('Ambient Sound: OFF', '🔇');
+        }
+      }
+      soundBtn.addEventListener('click', () => toggleSound());
+
+      // Screenshot Button to Save as PNG
+      const screenshotBtn = document.getElementById('screenshotBtn');
+      const panelScreenshotBtn = document.getElementById('panelScreenshotBtn');
+
+      function captureScreenshot() {
+        flashOverlay.classList.add('active');
+        setTimeout(() => flashOverlay.classList.remove('active'), 140);
+
+        playShutterAudio();
+
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          const timeStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          link.download = `text-rain-${timeStr}.png`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          showToast('📸 Screenshot Saved as PNG!', '📸');
+        } catch (err) {
+          showToast('Could not save screenshot', '⚠️');
+        }
+      }
+      screenshotBtn.addEventListener('click', captureScreenshot);
+      panelScreenshotBtn.addEventListener('click', captureScreenshot);
+
+      // Ambient Breeze Toggle
+      const breezeBtn = document.getElementById('breezeBtn');
+      function toggleBreeze() {
+        CONFIG.breezeEnabled = !CONFIG.breezeEnabled;
+        breezeBtn.classList.toggle('active', CONFIG.breezeEnabled);
+        showToast(CONFIG.breezeEnabled ? 'Ambient Breeze: ON' : 'Ambient Breeze: OFF', '🍃');
+      }
+      breezeBtn.addEventListener('click', toggleBreeze);
+
+      // Center Explosion & Black Hole Panel Buttons
+      const burstBtn = document.getElementById('burstBtn');
+      const panelBurstBtn = document.getElementById('panelBurstBtn');
+      const panelHoleBtn = document.getElementById('panelHoleBtn');
+      const brandCluster = document.getElementById('brandCluster');
+
+      function triggerCenterBurst() {
+        triggerExplosion(width * 0.5, height * 0.45);
+        showToast('Center Explosion!', '💥');
+      }
+      burstBtn.addEventListener('click', triggerCenterBurst);
+      panelBurstBtn.addEventListener('click', triggerCenterBurst);
+      brandCluster.addEventListener('click', triggerCenterBurst);
+
+      panelHoleBtn.addEventListener('click', () => {
+        createBlackHole(width * 0.5, height * 0.45);
+      });
+
+      // Rain Themes Selection Pills
+      const palettePills = document.querySelectorAll('#palettePills .pill-btn');
+      function setPalette(paletteKey) {
+        if (!PALETTES[paletteKey]) return;
+        CONFIG.currentPalette = paletteKey;
+        palettePills.forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.palette === paletteKey);
+        });
+        refreshAllColumnHues();
+        showToast(`Theme: ${PALETTES[paletteKey].name}`, '🎨');
+      }
+
+      palettePills.forEach(btn => {
+        btn.addEventListener('click', () => setPalette(btn.dataset.palette));
+      });
+
+      // Custom Text Mode
+      const customModeToggle = document.getElementById('customModeToggle');
+      const customTextInput = document.getElementById('customTextInput');
+
+      function setCustomTextMode(enabled) {
+        CONFIG.customTextMode = enabled !== undefined ? enabled : !CONFIG.customTextMode;
+        customModeToggle.classList.toggle('active', CONFIG.customTextMode);
+        showToast(CONFIG.customTextMode ? 'Custom Text Rain: ACTIVE' : 'Custom Text Rain: OFF', '🔤');
+      }
+
+      customModeToggle.addEventListener('click', () => setCustomTextMode());
+
+      customTextInput.addEventListener('input', (e) => {
+        CONFIG.customText = e.target.value;
+        if (!CONFIG.customTextMode && e.target.value.trim().length > 0) {
+          setCustomTextMode(true);
+        }
+      });
+
+      // Character Set Selection Pills
+      const charsetPills = document.querySelectorAll('#charsetPills .pill-btn');
+      function setCharset(setKey) {
+        CONFIG.currentCharSet = setKey;
+        charsetPills.forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.charset === setKey);
+        });
+        if (CONFIG.customTextMode) {
+          setCustomTextMode(false);
+        }
+        showToast(`Charset: ${setKey.toUpperCase()}`, '🔣');
+      }
+
+      charsetPills.forEach(btn => {
+        btn.addEventListener('click', () => setCharset(btn.dataset.charset));
+      });
+
+      // Wind Mode Pills
+      const windModePills = document.querySelectorAll('#windModePills .pill-btn');
+      windModePills.forEach(btn => {
+        btn.addEventListener('click', () => {
+          CONFIG.windMode = btn.dataset.mode;
+          windModePills.forEach(b => b.classList.toggle('active', b === btn));
+          showToast(`Mode: ${btn.textContent}`, '🌪️');
+        });
+      });
+
+      // Gravity Slider
+      const gravitySlider = document.getElementById('gravitySlider');
+      const gravityVal = document.getElementById('gravityVal');
+      gravitySlider.addEventListener('input', () => {
+        const val = parseFloat(gravitySlider.value);
+        CONFIG.gravity = val;
+        let label = `${val.toFixed(1)}x`;
+        if (val <= 0.3) label = `Slow-Mo (${label})`;
+        else if (val <= 0.7) label = `Gentle (${label})`;
+        else if (val <= 1.3) label = `Normal (${label})`;
+        else if (val <= 2.5) label = `Fast (${label})`;
+        else label = `Hyper (${label})`;
+        gravityVal.textContent = label;
+      });
+
+      // Character Density Slider
+      const densitySlider = document.getElementById('densitySlider');
+      const densityVal = document.getElementById('densityVal');
+      densitySlider.addEventListener('input', () => {
+        userCustomizedDensity = true;
+        const spacing = parseInt(densitySlider.value, 10);
+        CONFIG.columnSpacing = spacing;
+        let text = 'Medium';
+        if (spacing <= 14) text = 'Ultra Dense';
+        else if (spacing <= 18) text = 'Dense';
+        else if (spacing >= 32) text = 'Sparse';
+        else if (spacing >= 26) text = 'Spaced';
+        densityVal.textContent = text;
+        initColumns();
+      });
+
+      // Font Size Slider
+      const fontSizeSlider = document.getElementById('fontSizeSlider');
+      const fontSizeVal = document.getElementById('fontSizeVal');
+      fontSizeSlider.addEventListener('input', () => {
+        userCustomizedFontSize = true;
+        const val = parseInt(fontSizeSlider.value, 10);
+        CONFIG.fontSize = val;
+        fontSizeVal.textContent = `${val}px`;
+      });
+
+      // Other Sliders
+      function bindSlider(sliderId, valueId, configKey, formatFn) {
+        const slider = document.getElementById(sliderId);
+        const valueDisplay = document.getElementById(valueId);
+        slider.addEventListener('input', () => {
+          const val = parseFloat(slider.value);
+          CONFIG[configKey] = val;
+          valueDisplay.textContent = formatFn ? formatFn(val) : val;
+        });
+      }
+
+      bindSlider('glowSlider', 'glowVal', 'glowIntensity', val => val === 0 ? 'Off' : val <= 8 ? 'Soft' : 'High');
+      bindSlider('trailSlider', 'trailVal', 'trailPersistence', val => val.toFixed(2));
+      bindSlider('windStrengthSlider', 'windStrengthVal', 'windStrength', val => val <= 0.5 ? 'Gentle' : val >= 2.0 ? 'Storm' : 'Normal');
+      bindSlider('windRadiusSlider', 'windRadiusVal', 'windRadius', val => `${val}px`);
+      bindSlider('blastPowerSlider', 'blastPowerVal', 'blastPower', val => val);
+      bindSlider('blastCountSlider', 'blastCountVal', 'blastCount', val => val);
+
+      // Reset Defaults
+      const resetBtn = document.getElementById('resetBtn');
+      resetBtn.addEventListener('click', () => {
+        userCustomizedDensity = false;
+        userCustomizedFontSize = false;
+
+        CONFIG.gravity = 1.0;
+        CONFIG.glowIntensity = 12;
+        CONFIG.trailPersistence = 0.30;
+        CONFIG.customTextMode = false;
+        CONFIG.mouseMagnet = false;
+        CONFIG.windMode = 'wind';
+        CONFIG.windStrength = 1.0;
+        CONFIG.windRadius = 180;
+        CONFIG.breezeEnabled = false;
+        CONFIG.blastPower = 18;
+        CONFIG.blastCount = 65;
+        CONFIG.isPaused = false;
+
+        gravitySlider.value = 1.0;
+        gravityVal.textContent = 'Normal (1.0x)';
+        document.getElementById('glowSlider').value = 12;
+        document.getElementById('glowVal').textContent = 'High';
+        document.getElementById('trailSlider').value = 0.30;
+        document.getElementById('trailVal').textContent = '0.30';
+        document.getElementById('windStrengthSlider').value = 1.0;
+        document.getElementById('windStrengthVal').textContent = 'Normal';
+        document.getElementById('windRadiusSlider').value = 180;
+        document.getElementById('windRadiusVal').textContent = '180px';
+        document.getElementById('blastPowerSlider').value = 18;
+        document.getElementById('blastPowerVal').textContent = '18';
+        document.getElementById('blastCountSlider').value = 65;
+        document.getElementById('blastCountVal').textContent = '65';
+
+        freezeBtn.classList.remove('active-frozen');
+        freezeIndicator.classList.remove('show');
+        magnetBtn.classList.remove('active-magnet');
+        panelMagnetToggle.classList.remove('active');
+        customModeToggle.classList.remove('active');
+        breezeBtn.classList.remove('active');
+
+        autoAdjustDensityForScreen();
+        setPalette('rainbow');
+        setCharset('matrix');
+        initColumns();
+        showToast('Settings Reset to Defaults', '🔄');
+      });
+
+      // Modal Shortcuts Dialog
+      const shortcutsModal = document.getElementById('shortcutsModal');
+      const helpBtn = document.getElementById('helpBtn');
+      const closeModalBtn = document.getElementById('closeModalBtn');
+      const modalOkBtn = document.getElementById('modalOkBtn');
+
+      function openModal() { shortcutsModal.classList.add('open'); }
+      function closeModal() { shortcutsModal.classList.remove('open'); }
+
+      helpBtn.addEventListener('click', openModal);
+      closeModalBtn.addEventListener('click', closeModal);
+      modalOkBtn.addEventListener('click', closeModal);
+      shortcutsModal.addEventListener('click', (e) => {
+        if (e.target === shortcutsModal) closeModal();
+      });
+
+      // Keyboard Shortcuts Listener
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        const key = e.key.toLowerCase();
+
+        if (e.code === 'Space') {
+          e.preventDefault();
+          toggleFreezeFrame();
+        } else if (key === 'g') {
+          toggleMouseMagnet();
+        } else if (key === 'p') {
+          captureScreenshot();
+        } else if (key === 'h') {
+          toggleZenMode();
+        } else if (key === 'f') {
+          toggleFullscreen();
+        } else if (key === 'b') {
+          toggleBreeze();
+        } else if (key === 'c' || key === 'e') {
+          triggerExplosion(mouse.x !== -9999 ? mouse.x : width * 0.5, mouse.y !== -9999 ? mouse.y : height * 0.5);
+        } else if (key === 'm') {
+          toggleSound();
+        } else if (key === 'escape') {
+          closeModal();
+          togglePanel(false);
+        } else if (key >= '1' && key <= '9') {
+          const themeKeys = ['rainbow', 'matrix', 'fire', 'ocean', 'monochrome', 'emoji', 'cyberpunk', 'aurora', 'sunset'];
+          const idx = parseInt(key, 10) - 1;
+          if (themeKeys[idx]) {
+            setPalette(themeKeys[idx]);
+          }
+        }
+      });
+
+      // Window Resize Listener with Debounce
+      let resizeTimeout = null;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(resizeCanvas, 80);
+      });
+
+      window.addEventListener('orientationchange', () => {
+        setTimeout(resizeCanvas, 150);
+      });
+
+      // Initial check: if on mobile/tablet (<= 768px), keep drawer collapsed by default
+      if (window.innerWidth <= 768) {
+        controlPanel.classList.add('collapsed');
+      } else {
+        // Desktop can start with drawer visible or collapsed
+        controlPanel.classList.remove('collapsed');
+        togglePanelBtn.classList.add('active');
+      }
+
+      // ------------------------------------------------------------------------
+      // Engine Startup
+      // ------------------------------------------------------------------------
+      resizeCanvas();
+      showToast('Text Rain: Touch drag = Wind, Tap = Explode, Hold = Black Hole', '🌈');
+      requestAnimationFrame(animationTick);
+
+    })();
+  </script>
+</body>
+</html>
