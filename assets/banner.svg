@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070b14"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="400" fill="url(#bgGrad)"/>
+  <circle cx="1050" cy="200" r="160" fill="#3b82f6" opacity="0.08"/>
+  <circle cx="150" cy="350" r="120" fill="#10b981" opacity="0.06"/>
+  <g transform="translate(100, 140)">
+    <rect x="0" y="0" width="180" height="28" rx="14" fill="#3b82f6" fill-opacity="0.2" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="90" y="18" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" font-weight="700" fill="#60a5fa" letter-spacing="1.5">OFFICIAL REPOSITORY</text>
+    <text x="0" y="80" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="48" font-weight="800" fill="#ffffff" letter-spacing="-0.5">Text Rain</text>
+    <text x="0" y="120" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="400" fill="#94a3b8">Falling Code Stream Simulation with Fluid Wind Dynamics</text>
+  </g>
+</svg>

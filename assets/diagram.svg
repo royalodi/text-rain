@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg6" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#02170d"/>
+      <stop offset="100%" stop-color="#062e19"/>
+    </linearGradient>
+    <marker id="arrow6" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#22c55e"/>
+    </marker>
+  </defs>
+  <rect width="960" height="400" rx="16" fill="url(#bg6)" stroke="#22c55e" stroke-width="2"/>
+  <text x="480" y="45" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#f8fafc">Text Rain Kinematic &amp; Audio Architecture</text>
+  
+  <rect x="50" y="100" width="180" height="85" rx="10" fill="#082113" stroke="#22c55e" stroke-width="2"/>
+  <text x="140" y="135" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="#86efac">Character Emitter</text>
+  <text x="140" y="160" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#94a3b8">Glyph Stream Shuffler</text>
+
+  <rect x="280" y="100" width="190" height="85" rx="10" fill="#082113" stroke="#22c55e" stroke-width="2"/>
+  <text x="375" y="135" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="#22c55e">Aerodynamic Wind Engine</text>
+  <text x="375" y="160" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#94a3b8">Mouse Velocity Vector Drag</text>
+
+  <rect x="520" y="100" width="180" height="85" rx="10" fill="#082113" stroke="#a855f7" stroke-width="2"/>
+  <text x="610" y="135" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="#a855f7">Singularity Attractor</text>
+  <text x="610" y="160" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#94a3b8">Right-Click Vortex Physics</text>
+
+  <rect x="740" y="100" width="170" height="85" rx="10" fill="#082113" stroke="#eab308" stroke-width="2"/>
+  <text x="825" y="135" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="#eab308">Pentatonic Synthesizer</text>
+  <text x="825" y="160" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#94a3b8">Dynamic Wind Chimes</text>
+
+  <rect x="280" y="240" width="420" height="100" rx="10" fill="#05190e" stroke="#4ade80" stroke-width="2"/>
+  <text x="490" y="275" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="#4ade80">High-DPI Matrix Particle Canvas</text>
+  <text x="490" y="300" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#cbd5e1">Leading Glow Heads | Phosphor Decay Fading | Multi-Color Modes</text>
+
+  <line x1="230" y1="142" x2="275" y2="142" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow6)"/>
+  <line x1="470" y1="142" x2="515" y2="142" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow6)"/>
+  <line x1="700" y1="142" x2="735" y2="142" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow6)"/>
+  <line x1="375" y1="185" x2="375" y2="235" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow6)"/>
+</svg>
